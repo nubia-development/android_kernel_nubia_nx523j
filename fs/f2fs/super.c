@@ -922,7 +922,6 @@ static loff_t max_file_blocks(void)
 	leaf_count *= NIDS_PER_BLOCK;
 	result += leaf_count;
 
-	result <<= bits;
 	return result;
 }
 
@@ -1277,7 +1276,9 @@ try_onemore:
 	if (err)
 		goto free_options;
 
-	sb->s_maxbytes = max_file_size(le32_to_cpu(raw_super->log_blocksize));
+	sbi->max_file_blocks = max_file_blocks();
+	sb->s_maxbytes = sbi->max_file_blocks <<
+				le32_to_cpu(raw_super->log_blocksize);
 	sb->s_max_links = F2FS_LINK_MAX;
 	get_random_bytes(&sbi->s_next_generation, sizeof(u32));
 
