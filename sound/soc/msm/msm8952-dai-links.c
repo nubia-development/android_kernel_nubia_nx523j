@@ -25,7 +25,11 @@ static struct snd_soc_card snd_soc_card_msm_card;
 
 static struct snd_soc_ops msm8952_quat_mi2s_be_ops = {
 	.startup = msm_quat_mi2s_snd_startup,
+#ifdef CONFIG_SND_SOC_AK4376
+	.hw_params = msm_quat_mi2s_snd_hw_params,
+#else
 	.hw_params = msm_mi2s_snd_hw_params,
+#endif
 	.shutdown = msm_quat_mi2s_snd_shutdown,
 };
 
@@ -958,6 +962,24 @@ static struct snd_soc_dai_link msm8952_common_fe_dai[] = {
 
 static struct snd_soc_dai_link msm8952_common_be_dai[] = {
 	/* Backend I2S DAI Links */
+#ifdef CONFIG_SND_SOC_AK4376
+	{
+		.name = LPASS_BE_QUAT_MI2S_RX,
+		.stream_name = "Quaternary MI2S Playback",
+		.cpu_dai_name = "msm-dai-q6-mi2s.3",
+		.platform_name = "msm-pcm-routing",
+		.codec_dai_name = "ak4376-AIF1",
+		.codec_name = "ak4376.8-0010",
+		.no_pcm = 1,
+		.be_id = MSM_BACKEND_DAI_QUATERNARY_MI2S_RX,
+              .init = &msm_audrx_init_ak4376,
+		.be_hw_params_fixup = msm_be_hw_params_fixup,
+		.ops = &msm8952_quat_mi2s_be_ops,
+		.ignore_pmdown_time = 1, /* dai link has playback support */
+		.ignore_suspend = 1,
+    	},
+
+#else
 	{
 		.name = LPASS_BE_QUAT_MI2S_RX,
 		.stream_name = "Quaternary MI2S Playback",
@@ -972,6 +994,7 @@ static struct snd_soc_dai_link msm8952_common_be_dai[] = {
 		.ignore_pmdown_time = 1, /* dai link has playback support */
 		.ignore_suspend = 1,
 	},
+#endif
 	/* Primary AUX PCM Backend DAI Links */
 	{
 		.name = LPASS_BE_AUXPCM_RX,
@@ -1143,6 +1166,36 @@ static struct snd_soc_dai_link msm8952_common_be_dai[] = {
 		.be_hw_params_fixup = msm_be_hw_params_fixup,
 		.ignore_suspend = 1,
 	},
+#ifdef CONFIG_SND_SOC_TFA9890
+    {
+        .name = LPASS_BE_QUIN_MI2S_RX,
+        .stream_name = "Quinary MI2S Playback",
+        .cpu_dai_name = "msm-dai-q6-mi2s.5",
+        .platform_name = "msm-pcm-routing",
+        .codec_dai_name = "tfa98xx_codec",
+        .codec_name = "tfa98xx.8-0034",
+        .no_pcm = 1,
+        .be_id = MSM_BACKEND_DAI_QUINARY_MI2S_RX,
+        .be_hw_params_fixup = msm_quin_be_hw_params_fixup,
+        .ops = &msm8952_quin_mi2s_be_ops,
+        .ignore_pmdown_time = 1, /* dai link has playback support */
+        .ignore_suspend = 1,
+    },
+    {
+        .name = LPASS_BE_QUIN_MI2S_TX,
+        .stream_name = "Quinary MI2S Capture",
+        .cpu_dai_name = "msm-dai-q6-mi2s.5",
+        .platform_name = "msm-pcm-routing",
+        .codec_name     = "msm-stub-codec.1",
+        .codec_dai_name = "msm-stub-tx",
+        .no_pcm = 1,
+        .be_id = MSM_BACKEND_DAI_QUINARY_MI2S_TX,
+        .be_hw_params_fixup = msm_quin_be_hw_params_fixup,
+        .ops = &msm8952_quin_mi2s_be_ops,
+        .ignore_pmdown_time = 1, /* dai link has playback support */
+        .ignore_suspend = 1,
+    },
+#else
 	{
 		.name = LPASS_BE_QUIN_MI2S_RX,
 		.stream_name = "Quinary MI2S Playback",
@@ -1157,6 +1210,7 @@ static struct snd_soc_dai_link msm8952_common_be_dai[] = {
 		.ignore_pmdown_time = 1, /* dai link has playback support */
 		.ignore_suspend = 1,
 	},
+#endif
 };
 
 static struct snd_soc_aux_dev msm895x_aux_dev[] = {

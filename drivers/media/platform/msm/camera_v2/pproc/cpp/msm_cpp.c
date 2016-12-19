@@ -174,7 +174,7 @@ static struct msm_bus_scale_pdata msm_cpp_bus_scale_data = {
 	qcmd;			 \
 })
 
-#define MSM_CPP_MAX_TIMEOUT_TRIAL 0
+#define MSM_CPP_MAX_TIMEOUT_TRIAL 1 //ZTEMT: change by qualcomm patch
 
 struct msm_cpp_timer_data_t {
 	struct cpp_device *cpp_dev;
@@ -1553,10 +1553,15 @@ static void msm_cpp_do_timeout_work(struct work_struct *work)
 	}
 	if (!atomic_read(&cpp_timer.used)) {
 		pr_info("Delayed trigger, IRQ serviced\n");
+		cpp_dev->timeout_trial_cnt = 0; //ZTEMT: change by qualcomm patch
 		goto end;
 	}
 
 	disable_irq(cpp_timer.data.cpp_dev->irq->start);
+	//ZTEMT: change by qualcomm patch --start
+	/* make suer all the pending queued entries are scheduled */
+	tasklet_kill(&cpp_dev->cpp_tasklet);
+	//ZTEMT: change by qualcomm patch --end
 	pr_info("Reloading firmware\n");
 	atomic_set(&cpp_timer.used, 0);
 	cpp_load_fw(cpp_timer.data.cpp_dev,
@@ -3353,13 +3358,16 @@ static long msm_cpp_subdev_fops_compat_ioctl(struct file *file,
 			vdev, cpp_dev);
 		return -EINVAL;
 	}
+	mutex_lock(&cpp_dev->mutex); //ZTEMT: change by qualcomm patch
 	/*
 	 * copy the user space 32 bit pointer to kernel space 32 bit compat
 	 * pointer
 	 */
 	if (copy_from_user(&up32_ioctl, (void __user *)up,
-		sizeof(up32_ioctl)))
+		sizeof(up32_ioctl))) {
+		mutex_unlock(&cpp_dev->mutex); //ZTEMT: change by qualcomm patch
 		return -EFAULT;
+	}
 
 	/* copy the data from 32 bit compat to kernel space 64 bit pointer */
 	kp_ioctl.id = up32_ioctl.id;
@@ -3369,6 +3377,7 @@ static long msm_cpp_subdev_fops_compat_ioctl(struct file *file,
 	kp_ioctl.ioctl_ptr = compat_ptr(up32_ioctl.ioctl_ptr);
 	if (!kp_ioctl.ioctl_ptr) {
 		pr_err("%s: Invalid ioctl pointer\n", __func__);
+		mutex_unlock(&cpp_dev->mutex); //ZTEMT: change by qualcomm patch
 		return -EINVAL;
 	}
 
@@ -3440,8 +3449,10 @@ static long msm_cpp_subdev_fops_compat_ioctl(struct file *file,
 		u32_cpp_hw_info.freq_tbl_count =
 			cpp_dev->hw_info.freq_tbl_count;
 		if (copy_to_user((void __user *)kp_ioctl.ioctl_ptr,
-			&u32_cpp_hw_info, sizeof(struct cpp_hw_info_32_t)))
+			&u32_cpp_hw_info, sizeof(struct cpp_hw_info_32_t))) {
+			mutex_unlock(&cpp_dev->mutex); //ZTEMT: change by qualcomm patch
 			return -EFAULT;
+		}
 
 		cmd = VIDIOC_MSM_CPP_GET_HW_INFO;
 		break;
@@ -3466,6 +3477,7 @@ static long msm_cpp_subdev_fops_compat_ioctl(struct file *file,
 		if (copy_to_user(
 				(void __user *)kp_ioctl.ioctl_ptr, &inst_info,
 				sizeof(struct msm_cpp_frame_info32_t))) {
+			mutex_unlock(&cpp_dev->mutex); //ZTEMT: change by qualcomm patch
 			return -EINVAL;
 		}
 		cmd = VIDIOC_MSM_CPP_GET_INST_INFO;
@@ -3488,6 +3500,7 @@ static long msm_cpp_subdev_fops_compat_ioctl(struct file *file,
 		if (copy_from_user(&k32_cpp_buff_info,
 			(void __user *)kp_ioctl.ioctl_ptr,
 			sizeof(k32_cpp_buff_info))) {
+			mutex_unlock(&cpp_dev->mutex); //ZTEMT: change by qualcomm patch
 			pr_err("error: cannot copy user pointer\n");
 			return -EFAULT;
 		}
@@ -3517,7 +3530,7 @@ static long msm_cpp_subdev_fops_compat_ioctl(struct file *file,
 		struct msm_cpp_frame_info32_t k32_process_frame;
 
 		CPP_DBG("VIDIOC_MSM_CPP_GET_EVENTPAYLOAD\n");
-		mutex_lock(&cpp_dev->mutex);
+		//mutex_lock(&cpp_dev->mutex); //ZTEMT: change by qualcomm patch
 		event_qcmd = msm_dequeue(queue, list_eventdata);
 		if (!event_qcmd) {
 			pr_err("no queue cmd available");
@@ -3544,7 +3557,7 @@ static long msm_cpp_subdev_fops_compat_ioctl(struct file *file,
 		kfree(process_frame);
 		kfree(event_qcmd);
 		cmd = VIDIOC_MSM_CPP_GET_EVENTPAYLOAD;
-		mutex_unlock(&cpp_dev->mutex);
+		//mutex_lock(&cpp_dev->mutex); //ZTEMT: change by qualcomm patch
 		break;
 	}
 	case VIDIOC_MSM_CPP_SET_CLOCK32:
@@ -3557,8 +3570,10 @@ static long msm_cpp_subdev_fops_compat_ioctl(struct file *file,
 		kp_ioctl.ioctl_ptr = (void *)&clock_settings;
 		if (is_compat_task()) {
 			if (kp_ioctl.len != sizeof(
-				struct msm_cpp_clock_settings32_t))
+				struct msm_cpp_clock_settings32_t)) {
+				mutex_unlock(&cpp_dev->mutex); //ZTEMT: change by qualcomm patch
 				return -EINVAL;
+			}
 			else
 				kp_ioctl.len =
 					sizeof(struct msm_cpp_clock_settings_t);
@@ -3605,8 +3620,10 @@ static long msm_cpp_subdev_fops_compat_ioctl(struct file *file,
 
 		if (copy_from_user(&k32_frame_info,
 			(void __user *)kp_ioctl.ioctl_ptr,
-			sizeof(k32_frame_info)))
+			sizeof(k32_frame_info))) {
+			mutex_unlock(&cpp_dev->mutex); //ZTEMT: change by qualcomm patch
 			return -EFAULT;
+		}
 
 		memset(&k64_frame_info, 0, sizeof(k64_frame_info));
 		k64_frame_info.identity = k32_frame_info.identity;
@@ -3632,6 +3649,7 @@ static long msm_cpp_subdev_fops_compat_ioctl(struct file *file,
 				__func__, cmd, VIDIOC_MSM_CPP_LOAD_FIRMWARE);
 		break;
 	}
+	mutex_unlock(&cpp_dev->mutex); //ZTEMT: change by qualcomm patch
 
 	switch (cmd) {
 	case VIDIOC_MSM_CPP_LOAD_FIRMWARE:

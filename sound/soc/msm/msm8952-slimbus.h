@@ -45,6 +45,12 @@ int msm_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 				struct snd_pcm_hw_params *params);
 int msm_quin_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 				struct snd_pcm_hw_params *params);
+#ifdef CONFIG_SND_SOC_AK4376
+int msm_quat_mi2s_snd_hw_params(struct snd_pcm_substream *substream,
+			     struct snd_pcm_hw_params *params);
+
+int msm_audrx_init_ak4376(struct snd_soc_pcm_runtime *rtd);
+#endif
 int msm_btsco_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 				struct snd_pcm_hw_params *params);
 int msm_proxy_rx_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,

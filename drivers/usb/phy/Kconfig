@@ -324,4 +324,11 @@ config USB_ULPI_VIEWPORT
 	  Provides read/write operations to the ULPI phy register set for
 	  controllers with a viewport register (e.g. Chipidea/ARC controllers).
 
+
+config NUBIA_USB_SWITCH
+	tristate "USB SWITCH FIX Driver"
+    default n
+	help
+	  implment usb switch for duall core.
+	  
 endif # USB_PHY

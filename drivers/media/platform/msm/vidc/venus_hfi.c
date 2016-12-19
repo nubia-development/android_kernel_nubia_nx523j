@@ -4502,8 +4502,9 @@ fail_protect_mem:
 	device->power_enabled = false;
 	if (device->resources.fw.cookie)
 		subsystem_put(device->resources.fw.cookie);
-	device->resources.fw.cookie = NULL;
+	//device->resources.fw.cookie = NULL;//ZTEMT: li.bin223 close for qualcomm patch
 fail_load_fw:
+	device->resources.fw.cookie = NULL;//ZTEMT: li.bin223 add for qualcomm patch
 	venus_hfi_iommu_detach(device);
 fail_iommu_attach:
 	venus_hfi_disable_unprepare_clks(device);

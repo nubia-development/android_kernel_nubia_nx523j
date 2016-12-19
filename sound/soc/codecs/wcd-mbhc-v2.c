@@ -30,11 +30,16 @@
 #include <sound/jack.h>
 #include "wcd-mbhc-v2.h"
 #include "wcdcal-hwdep.h"
-
+#ifdef CONFIG_ZTEMT_AUDIO
+#define WCD_MBHC_JACK_MASK (SND_JACK_HEADSET | SND_JACK_OC_HPHL | \
+			   SND_JACK_OC_HPHR | SND_JACK_LINEOUT | \
+			   SND_JACK_UNSUPPORTED)
+#else
 #define WCD_MBHC_JACK_MASK (SND_JACK_HEADSET | SND_JACK_OC_HPHL | \
 			   SND_JACK_OC_HPHR | SND_JACK_LINEOUT | \
 			   SND_JACK_MECHANICAL | SND_JACK_MICROPHONE2 | \
 			   SND_JACK_UNSUPPORTED)
+#endif
 
 #define WCD_MBHC_JACK_BUTTON_MASK (SND_JACK_BTN_0 | SND_JACK_BTN_1 | \
 				  SND_JACK_BTN_2 | SND_JACK_BTN_3 | \
@@ -67,6 +72,11 @@ enum wcd_mbhc_cs_mb_en_flag {
 	WCD_MBHC_EN_PULLUP,
 	WCD_MBHC_EN_NONE,
 };
+#ifdef CONFIG_FEATURE_ZTEMT_AUDIO_EXT_PA
+extern bool aw8736_ext_spk_power_amp_on(int);
+extern void schedule_delay_pa_on(void);
+extern bool hphr_channel_on(int);
+#endif //CONFIG_FEATURE_ZTEMT_AUDIO_EXT_PA
 
 static void wcd_mbhc_jack_report(struct wcd_mbhc *mbhc,
 				struct snd_soc_jack *jack, int status, int mask)
@@ -363,6 +373,9 @@ out_micb_en:
 			hphrocp_off_report(mbhc, SND_JACK_OC_HPHR);
 		clear_bit(WCD_MBHC_EVENT_PA_HPHR, &mbhc->event_state);
 		/* check if micbias is enabled */
+#ifdef CONFIG_FEATURE_ZTEMT_AUDIO_EXT_PA
+		aw8736_ext_spk_power_amp_on(0);
+#endif //CONFIG_FEATURE_ZTEMT_AUDIO_EXT_PA
 		if (micbias2)
 			/* Disable cs, pullup & enable micbias */
 			wcd_enable_curr_micbias(mbhc, WCD_MBHC_EN_MB);
@@ -384,12 +397,24 @@ out_micb_en:
 	case WCD_EVENT_PRE_HPHR_PA_ON:
 		set_bit(WCD_MBHC_EVENT_PA_HPHR, &mbhc->event_state);
 		/* check if micbias is enabled */
+#ifdef CONFIG_FEATURE_ZTEMT_AUDIO_EXT_PA
+		schedule_delay_pa_on();
+		if (mbhc->current_plug != MBHC_PLUG_TYPE_NONE) {
+			if (micbias2)
+				/* Disable cs, pullup & enable micbias */
+				wcd_enable_curr_micbias(mbhc, WCD_MBHC_EN_MB);
+			else
+				/* Disable micbias, enable pullup & cs */
+				wcd_enable_curr_micbias(mbhc, WCD_MBHC_EN_PULLUP);
+		}
+#else
 		if (micbias2)
 			/* Disable cs, pullup & enable micbias */
 			wcd_enable_curr_micbias(mbhc, WCD_MBHC_EN_MB);
 		else
 			/* Disable micbias, enable pullup & cs */
 			wcd_enable_curr_micbias(mbhc, WCD_MBHC_EN_PULLUP);
+#endif
 		break;
 	default:
 		break;
@@ -589,7 +614,12 @@ static void wcd_mbhc_report_plug(struct wcd_mbhc *mbhc, int insertion,
 			 jack_type, mbhc->hph_status);
 		wcd_mbhc_jack_report(mbhc, &mbhc->headset_jack,
 				mbhc->hph_status, WCD_MBHC_JACK_MASK);
+#ifdef CONFIG_FEATURE_ZTEMT_AUDIO_EXT_PA
+		//wcd_mbhc_set_and_turnoff_hph_padac(mbhc);
+		//annotate turn off operation, in order to resolve no sound problem while unplug headset in voice speaker mode
+#else
 		wcd_mbhc_set_and_turnoff_hph_padac(mbhc);
+#endif //CONFIG_FEATURE_ZTEMT_AUDIO_EXT_PA
 		hphrocp_off_report(mbhc, SND_JACK_OC_HPHR);
 		hphlocp_off_report(mbhc, SND_JACK_OC_HPHL);
 		mbhc->current_plug = MBHC_PLUG_TYPE_NONE;
@@ -690,9 +720,16 @@ static void wcd_mbhc_report_plug(struct wcd_mbhc *mbhc, int insertion,
 
 		pr_debug("%s: Reporting insertion %d(%x)\n", __func__,
 			 jack_type, mbhc->hph_status);
+
+		#ifdef CONFIG_ZTEMT_AUDIO
+		wcd_mbhc_jack_report(mbhc, &mbhc->headset_jack,
+				    mbhc->hph_status,
+				    WCD_MBHC_JACK_MASK);
+        #else
 		wcd_mbhc_jack_report(mbhc, &mbhc->headset_jack,
 				    (mbhc->hph_status | SND_JACK_MECHANICAL),
 				    WCD_MBHC_JACK_MASK);
+		#endif
 		wcd_mbhc_clr_and_turnon_hph_padac(mbhc);
 	}
 	pr_debug("%s: leave hph_status %x\n", __func__, mbhc->hph_status);
@@ -894,7 +931,11 @@ static int wcd_check_cross_conn(struct wcd_mbhc *mbhc)
 	WCD_MBHC_REG_READ(WCD_MBHC_HPHL_SCHMT_RESULT, hphl_sch_res);
 	WCD_MBHC_REG_READ(WCD_MBHC_HPHR_SCHMT_RESULT, hphr_sch_res);
 	if (!(hphl_sch_res || hphr_sch_res)) {
+#ifdef CONFIG_ZTEMT_EURO_HEADSET_SUPPORT
 		plug_type = MBHC_PLUG_TYPE_GND_MIC_SWAP;
+#else
+    	plug_type = MBHC_PLUG_TYPE_HEADSET;
+#endif
 		pr_debug("%s: Cross connection identified\n", __func__);
 	} else {
 		pr_debug("%s: No Cross connection found\n", __func__);
@@ -1223,6 +1264,10 @@ correct_plug_type:
 			goto exit;
 		}
 		WCD_MBHC_REG_READ(WCD_MBHC_HS_COMP_RESULT, hs_comp_res);
+
+        #ifdef CONFIG_ZTEMT_AUDIO
+        if(hs_comp_res==1)hs_comp_res=0;
+        #endif
 
 		pr_debug("%s: hs_comp_res: %x\n", __func__, hs_comp_res);
 		if (mbhc->mbhc_cb->hph_pa_on_status)
@@ -1981,6 +2026,10 @@ exit:
 
 static irqreturn_t wcd_mbhc_hphl_ocp_irq(int irq, void *data)
 {
+
+#ifdef CONFIG_ZTEMT_AUDIO
+#else
+
 	struct wcd_mbhc *mbhc = data;
 
 	pr_debug("%s: received HPHL OCP irq\n", __func__);
@@ -2002,12 +2051,17 @@ static irqreturn_t wcd_mbhc_hphl_ocp_irq(int irq, void *data)
 		}
 	} else {
 		pr_err("%s: Bad wcd9xxx_spmi private data\n", __func__);
-	}
+			}
+#endif
+
 	return IRQ_HANDLED;
 }
 
 static irqreturn_t wcd_mbhc_hphr_ocp_irq(int irq, void *data)
 {
+#ifdef CONFIG_ZTEMT_AUDIO
+#else
+
 	struct wcd_mbhc *mbhc = data;
 
 	pr_debug("%s: received HPHR OCP irq\n", __func__);
@@ -2025,6 +2079,7 @@ static irqreturn_t wcd_mbhc_hphr_ocp_irq(int irq, void *data)
 		wcd_mbhc_jack_report(mbhc, &mbhc->headset_jack,
 				    mbhc->hph_status, WCD_MBHC_JACK_MASK);
 	}
+#endif
 	return IRQ_HANDLED;
 }
 

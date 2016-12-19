@@ -90,6 +90,24 @@ static void msm_actuator_parse_i2c_params(struct msm_actuator_ctrl_t *a_ctrl,
 	uint32_t size = a_ctrl->reg_tbl_size, i = 0;
 	struct msm_camera_i2c_reg_array *i2c_tbl = a_ctrl->i2c_reg_tbl;
 	CDBG("Enter\n");
+
+	//ZTEMT::wangqiaoming modify AF problem----begin
+	//Must write high 8 bits first, dafault as the first register, otherwise, should change their order
+	if (strncmp(a_ctrl->act_name,"ak7371",strlen("ak7371"))==0 && size==2)
+	{
+		i2c_tbl[0].reg_addr = write_arr[0].reg_addr;
+		i2c_tbl[0].delay = delay;
+		i2c_tbl[0].reg_data=((next_lens_position <<write_arr[0].data_shift) & 0xFF00)>>8;
+
+		i2c_tbl[1].reg_addr = write_arr[1].reg_addr;
+		i2c_tbl[1].delay = delay;
+		i2c_tbl[1].reg_data=(next_lens_position <<write_arr[1].data_shift) &0xFF;
+
+		a_ctrl->i2c_tbl_index=2;
+		return;
+	}
+	//ZTEMT::wangqiaoming modify AF problem----end
+
 	for (i = 0; i < size; i++) {
 		if (write_arr[i].reg_write_type == MSM_ACTUATOR_WRITE_DAC) {
 			value = (next_lens_position <<
@@ -1130,6 +1148,13 @@ static int32_t msm_actuator_set_position(
 		return -EFAULT;
 	}
 
+      // ZTEMT: zhangwenting add for AF -----start
+      pr_err("msm_actuator_set_position---act_name:%s \n", a_ctrl->act_name);
+      if (!strncmp(a_ctrl->act_name, "alps_bu64297gwz", 32)) 
+      {
+          hw_params = 0xC400;
+      }
+      // ZTEMT: zhangwenting add for AF -----end
 	a_ctrl->i2c_tbl_index = 0;
 	hw_params = set_pos->hw_params;
 	for (index = 0; index < set_pos->number_of_steps; index++) {
@@ -1445,6 +1470,16 @@ static int32_t msm_actuator_config(struct msm_actuator_ctrl_t *a_ctrl,
 		if (rc < 0)
 			pr_err("Failed actuator power up%d\n", rc);
 		break;
+    // ZTEMT: fengxun add for manual AF -----start
+    case CFG_SET_ACTUATOR_NAME:
+        if (NULL != cdata->cfg.act_name) {
+            strncpy(a_ctrl->act_name,
+                cdata->cfg.act_name,
+                MSM_ACTUATOT_MAX_NAME - 1);
+            pr_err("CFG_SET_ACTUATOR_NAME ---act_name:%s \n", a_ctrl->act_name);
+        }
+        break;
+    // ZTEMT: fengxun add for manual AF -----end
 
 	default:
 		break;
@@ -1679,6 +1714,13 @@ static long msm_actuator_subdev_do_ioctl(
 				compat_ptr(u32->cfg.move.ringing_params);
 			parg = &actuator_data;
 			break;
+        // ZTEMT: fengxun add for manual AF -----start
+        case CFG_SET_ACTUATOR_NAME:
+           actuator_data.cfgtype = u32->cfgtype;
+           actuator_data.cfg.act_name = u32->cfg.act_name;
+           parg = &actuator_data;
+        break;
+        // ZTEMT: fengxun add for manual AF -----end
 		case CFG_SET_POSITION:
 			actuator_data.cfgtype = u32->cfgtype;
 			actuator_data.is_af_supported = u32->is_af_supported;

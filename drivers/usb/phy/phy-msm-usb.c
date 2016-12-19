@@ -51,6 +51,9 @@
 #include <linux/qpnp/qpnp-adc.h>
 
 #include <linux/msm-bus.h>
+#ifdef CONFIG_NUBIA_USB_SWITCH
+#include "linux/mdm_9x25.h"
+#endif
 
 #define MSM_USB_BASE	(motg->regs)
 #define MSM_USB_PHY_CSR_BASE (motg->phy_csr_regs)
@@ -138,13 +141,19 @@ static inline bool aca_enabled(void)
 	return debug_aca_enabled;
 #endif
 }
-
+#ifdef CONFIG_NUBIA_USB_SWITCH
+static bool usb_host_exit;
+static bool is_switch_to_host;
+#endif
 static int vdd_val[VDD_VAL_MAX];
 static u32 bus_freqs[USB_NUM_BUS_CLOCKS];	/* bimc, snoc, pcnoc clk */;
 static char bus_clkname[USB_NUM_BUS_CLOCKS][20] = {"bimc_clk", "snoc_clk",
 						"pcnoc_clk"};
 static bool bus_clk_rate_set;
 
+#ifdef CONFIG_NUBIA_USB_SWITCH
+int msm_otg_mode_change(struct msm_otg *motg,const char * buf);
+#endif
 static void dbg_inc(unsigned *idx)
 {
 	*idx = (*idx + 1) & (DEBUG_MAX_MSG-1);
@@ -2625,6 +2634,12 @@ static void msm_otg_chg_check_timer_func(unsigned long data)
 		return;
 	}
 
+	#ifdef CONFIG_ZTEMT_COMMON_CHARGER
+	//ZTEMT add, support floated charger, fix current 900mA
+	pr_info("floated charger is detected as SDP\n");
+	msm_otg_notify_charger(motg, 900);
+	#endif
+
 	if ((readl_relaxed(USB_PORTSC) & PORTSC_LS) == PORTSC_LS) {
 		dev_dbg(otg->phy->dev, "DCP is detected as SDP\n");
 		msm_otg_dbg_log_event(&motg->phy, "DCP IS DETECTED AS SDP",
@@ -3767,7 +3782,13 @@ static void msm_otg_sm_work(struct work_struct *w)
 			if (test_bit(ID_A, &motg->inputs))
 				msm_otg_notify_charger(motg, 0);
 			else
+                /* disable origin vbus set and enalbe boost**/
+#ifdef CONFIG_NUBIA_USB_SWITCH
+                ext_modem_notifier_call_chain(EXT_MODEM_BOOST_HIGH);
+#else
 				msm_hsusb_vbus_power(motg, 1);
+#endif
+
 			msm_otg_start_timer(motg, TA_WAIT_VRISE, A_WAIT_VRISE);
 		} else {
 			pr_debug("No session requested\n");
@@ -4299,10 +4320,17 @@ static void msm_otg_set_vbus_state(int online)
 		pr_debug("PMIC: BSV set\n");
 		msm_otg_dbg_log_event(&motg->phy, "PMIC: BSV SET",
 				init, motg->inputs);
+#ifdef CONFIG_NUBIA_USB_SWITCH
+        usb_host_exit=false;
+#endif
 		if (test_and_set_bit(B_SESS_VLD, &motg->inputs) && init)
 			return;
 	} else {
 		pr_debug("PMIC: BSV clear\n");
+#ifdef CONFIG_NUBIA_USB_SWITCH
+        ext_modem_notifier_call_chain(EXT_MODEM_USBSWITCH_HIGH);
+        usb_host_exit=true;
+#endif
 		msm_otg_dbg_log_event(&motg->phy, "PMIC: BSV CLEAR",
 				init, motg->inputs);
 		if (!test_and_clear_bit(B_SESS_VLD, &motg->inputs) && init)
@@ -4363,7 +4391,13 @@ out:
 	} else if (!motg->sm_work_pending) {
 		/* process event only if previous one is not pending */
 		queue_work(motg->otg_wq, &motg->sm_work);
+#ifdef CONFIG_NUBIA_USB_SWITCH
+    if(usb_host_exit== true){
+    msm_otg_mode_change(motg,"host");
+    }
+#endif   
 	}
+
 }
 
 static void msm_id_status_w(struct work_struct *w)
@@ -4380,7 +4414,23 @@ static void msm_id_status_w(struct work_struct *w)
 		motg->id_state = gpio_get_value(motg->pdata->usb_id_gpio);
 	else if (motg->phy_irq)
 		motg->id_state = msm_otg_read_phy_id_state(motg);
-
+#ifdef CONFIG_NUBIA_USB_SWITCH
+    //otg device insert, so swith dp/dm and label it or turn on vbus.
+   if(motg->id_state == USB_ID_GROUND && is_switch_to_host ==true){
+    ext_modem_notifier_call_chain(EXT_MODEM_BOOST_LOW);
+    ext_modem_notifier_call_chain(EXT_MODEM_USBSWITCH_LOW);
+    udelay(1000);
+    msm_hsusb_vbus_power(motg, 1);
+    }else if (motg->id_state == USB_ID_FLOAT &&is_switch_to_host ==true)
+        {
+    msm_hsusb_vbus_power(motg, 0);
+    ext_modem_notifier_call_chain(EXT_MODEM_USBSWITCH_HIGH);
+    
+    udelay(1000);
+    ext_modem_notifier_call_chain(EXT_MODEM_BOOST_HIGH);
+    motg->id_state = USB_ID_GROUND;
+    }
+#endif 
 	if (motg->err_event_seen)
 		return;
 
@@ -4573,6 +4623,75 @@ static ssize_t msm_otg_mode_write(struct file *file, const char __user *ubuf,
 out:
 	return status;
 }
+
+#ifdef CONFIG_NUBIA_USB_SWITCH
+int msm_otg_mode_change(struct msm_otg *motg,const char * buf)
+{
+	struct usb_phy *phy = &motg->phy;
+
+	enum usb_mode_type req_mode;
+
+	if (!strncmp(buf, "host", 4)) {
+		req_mode = USB_HOST;
+        is_switch_to_host=true;
+	} else if (!strncmp(buf, "peripheral", 10)) {
+		req_mode = USB_PERIPHERAL;
+        is_switch_to_host=false;
+	} else if (!strncmp(buf, "none", 4)) {
+		req_mode = USB_NONE;
+	} else {
+		goto out;
+	}
+
+	switch (req_mode) {
+	case USB_NONE:
+		switch (phy->state) {
+		case OTG_STATE_A_WAIT_BCON:
+		case OTG_STATE_A_HOST:
+		case OTG_STATE_A_SUSPEND:
+		case OTG_STATE_B_PERIPHERAL:
+			set_bit(ID, &motg->inputs);
+			clear_bit(B_SESS_VLD, &motg->inputs);
+			break;
+		default:
+			goto out;
+		}
+		break;
+	case USB_PERIPHERAL:
+		switch (phy->state) {
+		case OTG_STATE_B_IDLE:
+		case OTG_STATE_A_WAIT_BCON:
+		case OTG_STATE_A_HOST:
+		case OTG_STATE_A_SUSPEND:
+			set_bit(ID, &motg->inputs);
+			set_bit(B_SESS_VLD, &motg->inputs);
+			break;
+		default:
+			goto out;
+		}
+		break;
+	case USB_HOST:
+		switch (phy->state) {
+		case OTG_STATE_B_IDLE:
+		case OTG_STATE_B_PERIPHERAL:
+			clear_bit(ID, &motg->inputs);
+			break;
+		default:
+			goto out;
+		}
+		break;
+	default:
+		goto out;
+	}
+    printk(KERN_ERR"phy state is %d",phy->state);
+	motg->id_state = (test_bit(ID, &motg->inputs)) ? USB_ID_FLOAT :
+							USB_ID_GROUND;
+	pm_runtime_resume(phy->dev);
+	queue_work(motg->otg_wq, &motg->sm_work);
+out:
+	return -EBUSY;
+}
+#endif
 
 const struct file_operations msm_otg_mode_fops = {
 	.open = msm_otg_mode_open,
@@ -4904,6 +5023,11 @@ static int otg_power_set_property_usb(struct power_supply *psy,
 		switch (psy->type) {
 		case POWER_SUPPLY_TYPE_USB:
 			motg->chg_type = USB_SDP_CHARGER;
+#ifdef CONFIG_NUBIA_USB_SWITCH
+            ext_modem_notifier_call_chain(EXT_MODEM_BOOST_LOW);
+            ext_modem_notifier_call_chain(EXT_MODEM_USBSWITCH_LOW);
+            msm_otg_mode_change(motg,"peripheral");
+#endif
 			break;
 		case POWER_SUPPLY_TYPE_USB_DCP:
 			motg->chg_type = USB_DCP_CHARGER;

@@ -27,6 +27,9 @@
 
 #define	MSM_ACTUATOT_MAX_VREGS (10)
 #define	ACTUATOR_MAX_POLL_COUNT 10
+//ZTEMT: fengxun add for manual AF -----start
+#define MSM_ACTUATOT_MAX_NAME (32)
+//ZTEMT: fengxun add for manual AF -----end
 
 struct msm_actuator_ctrl_t;
 
@@ -107,6 +110,9 @@ struct msm_actuator_ctrl_t {
 	struct msm_actuator_vreg vreg_cfg;
 	struct park_lens_data_t park_lens;
 	uint32_t max_code_size;
+    // ZTEMT: fengxun add for manual AF -----start
+    char act_name[MSM_ACTUATOT_MAX_NAME];
+    // ZTEMT: fengxun add for manual AF -----end
 };
 
 #endif

@@ -14,6 +14,11 @@ config POWER_SUPPLY_DEBUG
 	  Say Y here to enable debugging messages for power supply class
 	  and drivers.
 
+config ZTEMT_POWER_DEBUG
+	bool "ZTEMT Power Debug Feature"
+	default y
+	help
+	  ZTEMT Power Debug Feature
 config PDA_POWER
 	tristate "Generic PDA/phone power driver"
 	depends on !S390
@@ -564,6 +569,71 @@ config MSM_BCL_PERIPHERAL_CTL
 	  provides routines to configure and monitor the BCL
 	  PMIC peripheral.
 
+################ztemt hw_version config start################
+config ZTEMT_HW_VERSION
+	bool "ZTEMT HW VERSION"
+	default n
+	help
+	  ZTEMT HW VERSION
+
+config ZTEMT_HW_VERSION_DEBUG
+	bool "ZTEMT HW VERSION DEBUG"
+	depends on ZTEMT_HW_VERSION
+	default n
+	help
+	  ZTEMT HW VERSION DEBUG
+
+config ZTEMT_HW_VER_BY_ADC
+	bool "ZTEMT HW VER BY ADC"
+	depends on ZTEMT_HW_VERSION
+	default n
+	help
+	  ZTEMT HW VER BY ADC
+
+config ZTEMT_HW_CONFIG_BY_GPIO
+	bool "ZTEMT HW CONFIG BY GPIO"
+	depends on ZTEMT_HW_VERSION
+	default n
+	help
+	  ZTEMT HW CONFIG BY GPIO
+
+config ZTEMT_HW_CPU_SERIAL_NUM
+	bool "ZTEMT HW CPU SERIAL NUM"
+	depends on ZTEMT_HW_VERSION
+	default y
+	help
+	  ZTEMT HW CPU SERIAL NUM
+
+config ZTEMT_HW_CPU_SERIAL_NUM_MSM8952
+	bool "ZTEMT_HW_CPU_SERIAL_NUM_MSM8952"
+	depends on ZTEMT_HW_CPU_SERIAL_NUM
+	default n
+	help
+	  ZTEMT HW CPU SERIAL NUM MSM8952
+
+################ztemt hw_version config end#################
+
+
+################ZTEMT charger
+config ZTEMT_COMMON_CHARGER
+	bool "ZTEMT For Common Platfrom Charge"
+	default n
+	help
+	  ZTEMT For Common Platfrom Charge
+
+config ZTEMT_CHARGER_CNTL_TYPEC
+	bool "ZTEMT Charger control typec ic"
+	default n
+	help
+	  ZTEMT Charger control typec ic
+
+config ZTEMT_SMB1351_CHARGER
+	bool "ZTEMT For SMB1351  Charge"
+	default n
+	help
+	  ZTEMT For SMB1351  Charge
+################ztemt battery end
+	  
 source "drivers/power/reset/Kconfig"
 
 endif # POWER_SUPPLY

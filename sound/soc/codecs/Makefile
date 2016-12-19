@@ -141,6 +141,12 @@ snd-soc-wm9712-objs := wm9712.o
 snd-soc-wm9713-objs := wm9713.o
 snd-soc-wm-hubs-objs := wm_hubs.o
 
+#add by zmwu
+snd-soc-tfa9890-objs := tfa98xx.o tfa_container.o  tfa_dsp.o 
+#end
+
+snd-soc-ak4376-objs := ak4376.o
+
 snd-soc-msm-stub-objs := msm_stub.o
 obj-$(CONFIG_SND_SOC_MSM_HDMI_CODEC_RX) := msm_hdmi_codec_rx.o
 
@@ -287,3 +293,8 @@ obj-$(CONFIG_SND_SOC_MSM_STUB)  += snd-soc-msm-stub.o
 # Amp
 obj-$(CONFIG_SND_SOC_MAX9877)	+= snd-soc-max9877.o
 obj-$(CONFIG_SND_SOC_TPA6130A2)	+= snd-soc-tpa6130a2.o
+
+#add by zmwu
+obj-$(CONFIG_SND_SOC_TFA9890)   += snd-soc-tfa9890.o
+#end
+obj-$(CONFIG_SND_SOC_AK4376)	+=snd-soc-ak4376.o

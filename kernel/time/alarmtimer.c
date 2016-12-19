@@ -31,6 +31,10 @@
 #include "lpm-levels.h"
 #endif
 
+#ifdef CONFIG_ZTEMT_PON_ALARM_DELTA
+#define ALARM_DELTA 120
+#endif
+
 /**
  * struct alarm_base - Alarm timer bases
  * @lock:		Lock for syncrhonized access to the base
@@ -135,8 +139,15 @@ void set_power_on_alarm(void)
 	 * It is to make sure that alarm time will be always
 	 * bigger than wall time.
 	 */
+#ifdef CONFIG_ZTEMT_PON_ALARM_DELTA
+       if ((alarm_time - ALARM_DELTA) > rtc_secs)
+               alarm_time -= ALARM_DELTA;
+       else
+               goto disable_alarm;
+#else
 	if (alarm_secs <= wall_time.tv_sec + 1)
 		goto disable_alarm;
+#endif
 
 	rtc = alarmtimer_get_rtcdev();
 	if (!rtc)

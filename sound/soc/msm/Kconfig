@@ -31,6 +31,12 @@ config SND_SOC_MSM_HOSTLESS_PCM
 config SND_SOC_MSM8660_LPAIF
 	tristate
 
+config FEATURE_ZTEMT_AUDIO_EXT_PA
+       tristate "use to enable the external audio PA AW8736"
+       default n
+       help
+       use to enable the external audio PA AW8736
+
 config MSM_8x60_VOIP
 	tristate "SoC Machine driver for voip"
 	depends on SND_SOC_MSM8X60

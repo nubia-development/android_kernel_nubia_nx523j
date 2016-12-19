@@ -25,10 +25,15 @@
 #include "mdss_dsi.h"
 #include "mdss_dba_utils.h"
 
+#ifdef CONFIG_ZTEMT_LCD_DISP_PREFERENCE
+#include "ztemt_disp_preference.h"
+#endif
+
 #define DT_CMD_HDR 6
 #define MIN_REFRESH_RATE 48
 #define DEFAULT_MDP_TRANSFER_TIME 14000
-
+extern int get_camera_lcd_bkl_reg(void); //ZTEMT: added by nubia camera for front camera flash
+static int cabc_panel_state = 1;
 DEFINE_LED_TRIGGER(bl_led_trigger);
 
 #define CEIL(x, y)	(((x) + ((y)-1)) / (y))
@@ -179,17 +184,41 @@ static void mdss_dsi_panel_cmds_send(struct mdss_dsi_ctrl_pdata *ctrl,
 
 	mdss_dsi_cmdlist_put(ctrl, &cmdreq);
 }
-
+int zte_mdss_dsi_panel_cmds_send(struct mdss_dsi_ctrl_pdata *ctrl,
+			struct dsi_panel_cmds *pcmds)
+{
+	int ret = 0;
+	struct mdss_panel_info *pinfo;
+	pinfo = &(ctrl->panel_data.panel_info);
+	if(cabc_panel_state == 1){
+		mdss_dsi_panel_cmds_send(ctrl,pcmds);
+		ret = 0;
+		pr_debug("zte lcd disp func");
+	}else{
+		pr_err("zte lcd disp not ready");
+		ret = -1;
+	}
+	return ret;
+}
 static char led_pwm1[2] = {0x51, 0x0};	/* DTYPE_DCS_WRITE1 */
 static struct dsi_cmd_desc backlight_cmd = {
 	{DTYPE_DCS_WRITE1, 1, 0, 0, 1, sizeof(led_pwm1)},
 	led_pwm1
 };
-
+////ZTEMT: added by nubia camera for front camera flash start
+static char led_hbm[2] = {0x53, 0xE0};	/* DTYPE_DCS_WRITE1 */
+static struct dsi_cmd_desc backlight_cmd_hbm[] = {
+	{{DTYPE_DCS_WRITE1, 1, 0, 0, 1, sizeof(led_hbm)},
+	led_hbm},
+	{{DTYPE_DCS_WRITE1, 1, 0, 0, 1, sizeof(led_pwm1)},
+	led_pwm1},
+};
+//ZTEMT: added by nubia camera for front camera flash end
 static void mdss_dsi_panel_bklt_dcs(struct mdss_dsi_ctrl_pdata *ctrl, int level)
 {
 	struct dcs_cmd_req cmdreq;
 	struct mdss_panel_info *pinfo;
+	static int camer_lcd_bkl_reg = 0; //ZTEMT: added by nubia camera for front camera flash
 
 	pinfo = &(ctrl->panel_data.panel_info);
 	if (pinfo->dcs_cmd_by_left) {
@@ -207,6 +236,19 @@ static void mdss_dsi_panel_bklt_dcs(struct mdss_dsi_ctrl_pdata *ctrl, int level)
 	cmdreq.flags = CMD_REQ_COMMIT | CMD_CLK_CTRL;
 	cmdreq.rlen = 0;
 	cmdreq.cb = NULL;
+	//ZTEMT: added by nubia camera for front camera flash start
+    if (get_camera_lcd_bkl_reg()){
+    	camer_lcd_bkl_reg = 1;
+		led_hbm[1] = 0xE0;
+		cmdreq.cmds = backlight_cmd_hbm;
+		cmdreq.cmds_cnt = 2;
+    } else if (camer_lcd_bkl_reg == 1) {
+    	camer_lcd_bkl_reg = 0;
+		led_hbm[1] = 0x20;
+		cmdreq.cmds = backlight_cmd_hbm;
+		cmdreq.cmds_cnt = 2;
+    }
+	//ZTEMT: added by nubia camera for front camera flash end
 
 	mdss_dsi_cmdlist_put(ctrl, &cmdreq);
 }
@@ -617,6 +659,7 @@ static void mdss_dsi_panel_bl_ctrl(struct mdss_panel_data *pdata,
 {
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
 	struct mdss_dsi_ctrl_pdata *sctrl = NULL;
+	char *bklt_ctrl[] = {"pwm", "wled", "dcs"}; //nubia for lcd backlight
 
 	if (pdata == NULL) {
 		pr_err("%s: Invalid input data\n", __func__);
@@ -625,6 +668,11 @@ static void mdss_dsi_panel_bl_ctrl(struct mdss_panel_data *pdata,
 
 	ctrl_pdata = container_of(pdata, struct mdss_dsi_ctrl_pdata,
 				panel_data);
+
+	//nubia for lcd backlight
+	pr_err("[LCD]%s: bl_level[%s] = %d\n",__func__,
+		(ctrl_pdata->bklt_ctrl>=0 && ctrl_pdata->bklt_ctrl<=2)?
+		bklt_ctrl[ctrl_pdata->bklt_ctrl] : "unknow",bl_level);
 
 	/*
 	 * Some backlight controllers specify a minimum duty cycle
@@ -710,6 +758,7 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 	if (ctrl->ds_registered)
 		mdss_dba_utils_video_on(pinfo->dba_data, pinfo);
 end:
+	cabc_panel_state = 1;
 	pr_debug("%s:-\n", __func__);
 	return ret;
 }
@@ -771,7 +820,7 @@ static int mdss_dsi_panel_off(struct mdss_panel_data *pdata)
 	pinfo = &pdata->panel_info;
 	ctrl = container_of(pdata, struct mdss_dsi_ctrl_pdata,
 				panel_data);
-
+	cabc_panel_state = 0;
 	pr_debug("%s: ctrl=%p ndx=%d\n", __func__, ctrl, ctrl->ndx);
 
 	if (pinfo->dcs_cmd_by_left) {
@@ -1863,7 +1912,7 @@ static int mdss_panel_parse_dt(struct device_node *np,
 	int rc, i, len;
 	const char *data;
 	struct mdss_panel_info *pinfo = &(ctrl_pdata->panel_data.panel_info);
-
+	u32 colortmp[3];
 	rc = of_property_read_u32(np, "qcom,mdss-dsi-panel-width", &tmp);
 	if (rc) {
 		pr_err("%s:%d, panel width not specified\n",
@@ -2117,6 +2166,130 @@ static int mdss_panel_parse_dt(struct device_node *np,
 
 	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->off_cmds,
 		"qcom,mdss-dsi-off-command", "qcom,mdss-dsi-off-command-state");
+	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->ce_cmds_off,
+                "zte,mdss-dsi-ce-command-off", "zte,mdss-dsi-ce-command-state");
+
+	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->ce_cmds_soft,
+		"zte,mdss-dsi-ce-command-soft", "zte,mdss-dsi-ce-command-state");
+
+	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->ce_cmds_std,
+		"zte,mdss-dsi-ce-command-std", "zte,mdss-dsi-ce-command-state");
+
+	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->ce_cmds_glow,
+		"zte,mdss-dsi-ce-command-glow", "zte,mdss-dsi-ce-command-state");
+
+	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->cabc_cmds_off,
+                "zte,mdss-dsi-cabc-command-off", "zte,mdss-dsi-cabc-command-state");
+
+	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->cabc_cmds_lever1,
+                "zte,mdss-dsi-cabc-command-lever1", "zte,mdss-dsi-cabc-command-state");
+
+	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->cabc_cmds_lever2,
+                "zte,mdss-dsi-cabc-command-lever2", "zte,mdss-dsi-cabc-command-state");
+
+	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->cabc_cmds_lever3,
+                "zte,mdss-dsi-cabc-command-lever3", "zte,mdss-dsi-cabc-command-state");
+
+	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->ce_cabc_cmds0,
+		"zte,mdss-dsi-ce-cabc-command0", "zte,mdss-dsi-ce-cabc-command-state");
+
+	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->ce_cabc_cmds1,
+                "zte,mdss-dsi-ce-cabc-command1", "zte,mdss-dsi-ce-cabc-command-state");
+
+	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->ce_cabc_cmds2,
+                "zte,mdss-dsi-ce-cabc-command2", "zte,mdss-dsi-ce-cabc-command-state");
+
+	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->ce_cabc_cmds3,
+                "zte,mdss-dsi-ce-cabc-command3", "zte,mdss-dsi-ce-cabc-command-state");
+
+	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->ce_cabc_cmds4,
+                "zte,mdss-dsi-ce-cabc-command4", "zte,mdss-dsi-ce-cabc-command-state");
+
+	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->ce_cabc_cmds5,
+                "zte,mdss-dsi-ce-cabc-command5", "zte,mdss-dsi-ce-cabc-command-state");
+
+	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->ce_cabc_cmds6,
+                "zte,mdss-dsi-ce-cabc-command6", "zte,mdss-dsi-ce-cabc-command-state");
+
+        mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->ce_cabc_cmds7,
+                "zte,mdss-dsi-ce-cabc-command7", "zte,mdss-dsi-ce-cabc-command-state");
+
+        mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->ce_cabc_cmds8,
+                "zte,mdss-dsi-ce-cabc-command8", "zte,mdss-dsi-ce-cabc-command-state");
+
+        mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->ce_cabc_cmds9,
+                "zte,mdss-dsi-ce-cabc-command9", "zte,mdss-dsi-ce-cabc-command-state");
+
+        mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->ce_cabc_cmds10,
+                "zte,mdss-dsi-ce-cabc-command10", "zte,mdss-dsi-ce-cabc-command-state");
+
+        mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->ce_cabc_cmds11,
+                "zte,mdss-dsi-ce-cabc-command11", "zte,mdss-dsi-ce-cabc-command-state");
+
+        mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->ce_cabc_cmds12,
+                "zte,mdss-dsi-ce-cabc-command12", "zte,mdss-dsi-ce-cabc-command-state");
+
+        mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->ce_cabc_cmds13,
+                "zte,mdss-dsi-ce-cabc-command13", "zte,mdss-dsi-ce-cabc-command-state");
+
+        mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->ce_cabc_cmds14,
+                "zte,mdss-dsi-ce-cabc-command14", "zte,mdss-dsi-ce-cabc-command-state");
+
+        mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->ce_cabc_cmds15,
+                "zte,mdss-dsi-ce-cabc-command15", "zte,mdss-dsi-ce-cabc-command-state");
+
+	data = of_get_property(np, "zte,mdss-dsi-panel-backlight-curve", &len);
+	if((!data) || (len != 256)) {
+		pr_err("%s:%d, Unable to read zte backlight curve",
+		       __func__, __LINE__);
+		for (i = 0; i < 256; i++)
+                        ctrl_pdata->backlight_curve[i] = i;
+	}else{
+		for (i = 0; i < len; i++)
+			ctrl_pdata->backlight_curve[i] = data[i];
+		for (i = 0; i < len; i++)
+			pr_debug("ctrl_pdata->backlight_curve[%d] = %d",i,ctrl_pdata->backlight_curve[i]);
+	}
+
+	rc = of_property_read_u32_array(np, "zte,mdss-dsi-colortmp-warm", colortmp, 3);
+	if (rc){
+		pr_err("%s:%d, error reading zte,mdss-dsi-colortmp-warm, rc = %d\n",
+		__func__, __LINE__, rc);
+		ctrl_pdata->nubia_mdp_colortmp_warm.defult = 1;
+	}else {
+		ctrl_pdata->nubia_mdp_colortmp_warm.red = colortmp[0];
+		ctrl_pdata->nubia_mdp_colortmp_warm.green = colortmp[1];
+		ctrl_pdata->nubia_mdp_colortmp_warm.blue = colortmp[2];
+		ctrl_pdata->nubia_mdp_colortmp_warm.defult = 0;
+		for(i=0;i<3;i++)
+                        pr_debug("caiwutang warm colortmp[%d]=%x",i,colortmp[i]);
+	}
+	rc = of_property_read_u32_array(np, "zte,mdss-dsi-colortmp-natural", colortmp, 3);
+        if (rc){
+                pr_err("%s:%d, error reading zte,mdss-dsi-colortmp-natural, rc = %d\n",
+                        __func__, __LINE__, rc);
+                ctrl_pdata->nubia_mdp_colortmp_natural.defult = 1;
+	}else {
+                ctrl_pdata->nubia_mdp_colortmp_natural.red = colortmp[0];
+                ctrl_pdata->nubia_mdp_colortmp_natural.green = colortmp[1];
+                ctrl_pdata->nubia_mdp_colortmp_natural.blue = colortmp[2];
+                ctrl_pdata->nubia_mdp_colortmp_natural.defult = 0;
+		for(i=0;i<3;i++)
+                        pr_debug("caiwutang natural colortmp[%d]=%x",i,colortmp[i]);
+        }
+	rc = of_property_read_u32_array(np, "zte,mdss-dsi-colortmp-cool", colortmp, 3);
+        if (rc){
+                pr_err("%s:%d, error reading zte,mdss-dsi-colortmp-cool, rc = %d\n",
+                        __func__, __LINE__, rc);
+                ctrl_pdata->nubia_mdp_colortmp_cool.defult = 1;
+       }else {
+                ctrl_pdata->nubia_mdp_colortmp_cool.red = colortmp[0];
+                ctrl_pdata->nubia_mdp_colortmp_cool.green = colortmp[1];
+                ctrl_pdata->nubia_mdp_colortmp_cool.blue = colortmp[2];
+                ctrl_pdata->nubia_mdp_colortmp_cool.defult = 0;
+		for(i=0;i<3;i++)
+			pr_debug("caiwutang cool colortmp[%d]=%x",i,colortmp[i]);
+        }
 
 	pinfo->mipi.force_clk_lane_hs = of_property_read_bool(np,
 		"qcom,mdss-dsi-force-clock-lane-hs");
@@ -2208,6 +2381,10 @@ int mdss_dsi_panel_init(struct device_node *node,
 	ctrl_pdata->low_power_config = mdss_dsi_panel_low_power_config;
 	ctrl_pdata->panel_data.set_backlight = mdss_dsi_panel_bl_ctrl;
 	ctrl_pdata->switch_mode = mdss_dsi_panel_switch_mode;
+
+#ifdef CONFIG_ZTEMT_LCD_DISP_PREFERENCE
+	ztemt_set_dsi_ctrl(ctrl_pdata);
+#endif
 
 	return 0;
 }

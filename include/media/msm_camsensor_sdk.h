@@ -3,7 +3,7 @@
 
 #define KVERSION 0x1
 
-#define MAX_POWER_CONFIG      12
+#define MAX_POWER_CONFIG      14
 #define GPIO_OUT_LOW          (0 << 1)
 #define GPIO_OUT_HIGH         (1 << 1)
 #define CSI_EMBED_DATA        0x12
@@ -182,6 +182,11 @@ enum msm_flash_cfg_type_t {
 	CFG_FLASH_OFF,
 	CFG_FLASH_LOW,
 	CFG_FLASH_HIGH,
+	//ZTEMT: added by congshan for front camera flash start
+	CFG_LCD_BKL_NORM,
+	CFG_LCD_BKL_LOW,
+	CFG_LCD_BKL_HIGH,
+	//ZTEMT: added by congshan for front camera flash end
 };
 
 enum msm_sensor_output_format_t {

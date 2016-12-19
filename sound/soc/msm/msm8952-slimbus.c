@@ -79,7 +79,13 @@ enum btsco_rates {
 static int slim0_rx_sample_rate = SAMPLING_RATE_48KHZ;
 static int slim0_tx_sample_rate = SAMPLING_RATE_48KHZ;
 static int slim1_tx_sample_rate = SAMPLING_RATE_48KHZ;
+
+#ifdef CONFIG_ZTEMT_AUDIO
+static int slim0_rx_bit_format = SNDRV_PCM_FORMAT_S24_LE;
+#else
 static int slim0_rx_bit_format = SNDRV_PCM_FORMAT_S16_LE;
+#endif
+
 static int slim0_tx_bit_format = SNDRV_PCM_FORMAT_S16_LE;
 static int slim1_tx_bit_format = SNDRV_PCM_FORMAT_S16_LE;
 static int msm_slim_0_rx_ch = 1;
@@ -88,7 +94,13 @@ static int msm_slim_1_tx_ch = 1;
 static int msm_vi_feed_tx_ch = 2;
 static int msm_slim_5_rx_ch = 1;
 static int slim5_rx_sample_rate = SAMPLING_RATE_48KHZ;
+
+#ifdef CONFIG_ZTEMT_AUDIO
+static int slim5_rx_bit_format = SNDRV_PCM_FORMAT_S24_LE;
+#else
 static int slim5_rx_bit_format = SNDRV_PCM_FORMAT_S16_LE;
+#endif
+
 static int msm8952_auxpcm_rate = SAMPLING_RATE_8KHZ;
 
 static int msm_btsco_rate = SAMPLING_RATE_8KHZ;
@@ -101,6 +113,92 @@ static int mi2s_rx_bit_format = SNDRV_PCM_FORMAT_S16_LE;
 
 static int msm_proxy_rx_ch = 2;
 static void *adsp_state_notifier;
+
+#ifdef CONFIG_SND_SOC_AK4376
+
+static int ak4376_mi2s_rx_bit_format = SNDRV_PCM_FORMAT_S16_LE;
+static int ak4376_mi2s_rx_sample_rate = SAMPLING_RATE_48KHZ;
+
+static struct afe_clk_cfg ak4376_mi2s_rx_clk = {
+	AFE_API_VERSION_I2S_CONFIG,
+	Q6AFE_LPASS_IBIT_CLK_1_P536_MHZ,
+	Q6AFE_LPASS_OSR_CLK_DISABLE,
+	Q6AFE_LPASS_CLK_SRC_INTERNAL,
+	Q6AFE_LPASS_CLK_ROOT_DEFAULT,
+	Q6AFE_LPASS_MODE_CLK1_VALID,
+	0,
+};
+
+static int ak4376_mi2s_bit_format_get(struct snd_kcontrol *kcontrol,
+        struct snd_ctl_elem_value *ucontrol)
+{
+	switch (ak4376_mi2s_rx_bit_format) {
+    		case SNDRV_PCM_FORMAT_S24_LE:
+				ucontrol->value.integer.value[0] = 1;
+				break;
+		case SNDRV_PCM_FORMAT_S16_LE:
+		default:
+			ucontrol->value.integer.value[0] = 0;
+			break;
+        }
+        return 0;
+}
+
+static int ak4376_mi2s_bit_format_put(struct snd_kcontrol *kcontrol,
+        struct snd_ctl_elem_value *ucontrol)
+{
+	switch (ucontrol->value.integer.value[0]) {
+		case 1:
+			ak4376_mi2s_rx_bit_format = SNDRV_PCM_FORMAT_S24_LE;
+			break;
+		case 0:
+		default:
+			ak4376_mi2s_rx_bit_format = SNDRV_PCM_FORMAT_S16_LE;
+			break;
+        }
+        pr_debug("%s: bit_format = %d \n", __func__, ak4376_mi2s_rx_bit_format);
+        return 0;
+}
+
+static int ak4376_mi2s_sample_rate_get(struct snd_kcontrol *kcontrol,
+        struct snd_ctl_elem_value *ucontrol)
+{
+	switch (ak4376_mi2s_rx_sample_rate) {
+	case SAMPLING_RATE_192KHZ:
+	        ucontrol->value.integer.value[0] = 2;
+	        break;
+	case SAMPLING_RATE_96KHZ:
+	        ucontrol->value.integer.value[0] = 1;
+	        break;
+	case SAMPLING_RATE_48KHZ:
+	default:
+		ucontrol->value.integer.value[0] = 0;
+		break;
+        }
+	return 0;
+}
+
+static int ak4376_mi2s_sample_rate_put(struct snd_kcontrol *kcontrol,
+        struct snd_ctl_elem_value *ucontrol)
+{
+	switch (ucontrol->value.integer.value[0]) {
+		case 2:
+			ak4376_mi2s_rx_sample_rate = SAMPLING_RATE_192KHZ;
+			break;
+		case 1:
+			ak4376_mi2s_rx_sample_rate = SAMPLING_RATE_96KHZ;
+			break;
+		case 0:
+		default:
+			ak4376_mi2s_rx_sample_rate = SAMPLING_RATE_48KHZ;
+			break;
+        }
+
+        pr_debug("%s: sample_rate = %d\n", __func__, ak4376_mi2s_rx_sample_rate);
+        return 0;
+}
+
+#endif
 
 static int msm8952_enable_codec_mclk(struct snd_soc_codec *codec, int enable,
 					bool dapm);
@@ -118,9 +216,15 @@ static struct wcd_mbhc_config wcd_mbhc_cfg = {
 	.swap_gnd_mic = NULL,
 	.hs_ext_micbias = true,
 	.key_code[0] = KEY_MEDIA,
+#ifdef CONFIG_ZTEMT_AUDIO
+	.key_code[1] = KEY_VOLUMEUP,
+	.key_code[2] = KEY_VOLUMEDOWN,
+	.key_code[3] = 0,
+#else
 	.key_code[1] = KEY_VOICECOMMAND,
 	.key_code[2] = KEY_VOLUMEUP,
 	.key_code[3] = KEY_VOLUMEDOWN,
+#endif
 	.key_code[4] = 0,
 	.key_code[5] = 0,
 	.key_code[6] = 0,
@@ -187,9 +291,15 @@ static void *def_tasha_mbhc_cal(void)
 	btn_high = ((void *)&btn_cfg->_v_btn_low) +
 		(sizeof(btn_cfg->_v_btn_low[0]) * btn_cfg->num_btn);
 
+#ifdef CONFIG_ZTEMT_AUDIO
+    btn_high[0] = 100;
+	btn_high[1] = 237;
+	btn_high[2] = 450;
+#else
 	btn_high[0] = 75;
 	btn_high[1] = 150;
 	btn_high[2] = 237;
+#endif
 	btn_high[3] = 450;
 	btn_high[4] = 450;
 	btn_high[5] = 450;
@@ -277,6 +387,30 @@ static void *def_codec_mbhc_cal(void)
 	return codec_cal;
 }
 
+#ifdef CONFIG_SND_SOC_TFA9890
+
+static struct afe_clk_cfg mi2s_rx_clk = {
+       AFE_API_VERSION_I2S_CONFIG,
+       Q6AFE_LPASS_IBIT_CLK_1_P536_MHZ,
+       Q6AFE_LPASS_OSR_CLK_DISABLE,
+       Q6AFE_LPASS_CLK_SRC_INTERNAL,
+       Q6AFE_LPASS_CLK_ROOT_DEFAULT,
+       Q6AFE_LPASS_MODE_CLK1_VALID,
+       0,
+};
+static struct afe_clk_cfg mi2s_tx_clk = {
+       AFE_API_VERSION_I2S_CONFIG,
+       Q6AFE_LPASS_IBIT_CLK_1_P536_MHZ,
+       Q6AFE_LPASS_OSR_CLK_DISABLE,
+       Q6AFE_LPASS_CLK_SRC_INTERNAL,
+       Q6AFE_LPASS_CLK_ROOT_DEFAULT,
+       Q6AFE_LPASS_MODE_CLK1_VALID,
+       0,
+};
+
+
+#else
+
 static struct afe_clk_cfg mi2s_rx_clk = {
 	AFE_API_VERSION_I2S_CONFIG,
 	Q6AFE_LPASS_IBIT_CLK_1_P536_MHZ,
@@ -296,6 +430,9 @@ static struct afe_clk_cfg mi2s_tx_clk = {
 	Q6AFE_LPASS_MODE_BOTH_VALID,
 	0,
 };
+
+#endif
+
 
 struct msm8952_codec {
 	void* (*get_afe_config_fn)(struct snd_soc_codec *codec,
@@ -997,6 +1134,12 @@ static const struct snd_kcontrol_new msm_snd_controls[] = {
 		     msm_btsco_rate_get, msm_btsco_rate_put),
 	SOC_ENUM_EXT("PROXY_RX Channels", msm_snd_enum[9],
 			msm_proxy_rx_ch_get, msm_proxy_rx_ch_put),
+#ifdef CONFIG_SND_SOC_AK4376
+	SOC_ENUM_EXT("AK4376_MI2S_RX BitFormat", msm_snd_enum[3],
+		     ak4376_mi2s_bit_format_get, ak4376_mi2s_bit_format_put),
+	SOC_ENUM_EXT("AK4376_MI2S_RX SampleRate", msm_snd_enum[4],
+			ak4376_mi2s_sample_rate_get, ak4376_mi2s_sample_rate_put),
+#endif
 };
 
 int msm_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
@@ -1097,6 +1240,29 @@ int msm_mi2s_snd_hw_params(struct snd_pcm_substream *substream,
 	param_set_mask(params, SNDRV_PCM_HW_PARAM_FORMAT, mi2s_rx_bit_format);
 	return 0;
 }
+#ifdef CONFIG_SND_SOC_AK4376
+int msm_quat_mi2s_snd_hw_params(struct snd_pcm_substream *substream,
+			     struct snd_pcm_hw_params *params)
+{
+	pr_debug("%s(): substream = %s  stream = %d\n", __func__,
+		 substream->name, substream->stream);
+	param_set_mask(params, SNDRV_PCM_HW_PARAM_FORMAT, ak4376_mi2s_rx_bit_format );
+	return 0;
+}
+
+int msm_audrx_init_ak4376(struct snd_soc_pcm_runtime *rtd)
+{
+	struct snd_soc_codec *codec = rtd->codec;
+	struct snd_soc_dapm_context *dapm = &codec->dapm;
+
+       pr_err("%s ",__func__);
+	snd_soc_dapm_ignore_suspend(dapm,"AK4376 HPL");
+	snd_soc_dapm_ignore_suspend(dapm, "AK4376 HPR");
+	snd_soc_dapm_sync(dapm);
+    return 0;
+
+}
+#endif
 
 int msm_snd_hw_params(struct snd_pcm_substream *substream,
 			     struct snd_pcm_hw_params *params)
@@ -1513,7 +1679,71 @@ static void msm_afe_clear_config(void)
 	afe_clear_config(AFE_CDC_REGISTERS_CONFIG);
 	afe_clear_config(AFE_SLIMBUS_SLAVE_CONFIG);
 }
+#ifdef CONFIG_SND_SOC_AK4376
+static int quat_mi2s_clk_ctl(struct snd_pcm_substream *substream, bool enable)
+{
+	int ret = 0;
 
+	if (enable) {
+		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+			if (ak4376_mi2s_rx_bit_format == SNDRV_PCM_FORMAT_S24_LE){
+				 switch(ak4376_mi2s_rx_sample_rate) {
+                        		case SAMPLING_RATE_192KHZ:
+                                		ak4376_mi2s_rx_clk.clk_val1 = Q6AFE_LPASS_OSR_CLK_12_P288_MHZ;//Q6AFE_LPASS_IBIT_CLK_12_P288_MHZ;
+                       		 case SAMPLING_RATE_96KHZ:
+                              		  ak4376_mi2s_rx_clk.clk_val1 = Q6AFE_LPASS_IBIT_CLK_6_P144_MHZ;
+                    		  	  case SAMPLING_RATE_48KHZ:
+                      		  default:
+                                		ak4376_mi2s_rx_clk.clk_val1 = Q6AFE_LPASS_IBIT_CLK_3_P072_MHZ;
+                                }
+			}else{
+				switch(ak4376_mi2s_rx_sample_rate) {
+                       		 case SAMPLING_RATE_192KHZ:
+                                		ak4376_mi2s_rx_clk.clk_val1 = Q6AFE_LPASS_IBIT_CLK_6_P144_MHZ;
+                       		 case SAMPLING_RATE_96KHZ :
+                                		ak4376_mi2s_rx_clk.clk_val1 = Q6AFE_LPASS_IBIT_CLK_3_P072_MHZ;
+                        		case SAMPLING_RATE_48KHZ :
+                        		default:
+                               		ak4376_mi2s_rx_clk.clk_val1 = Q6AFE_LPASS_IBIT_CLK_1_P536_MHZ;
+                           };
+			}
+			ret = afe_set_lpass_clock(
+					AFE_PORT_ID_QUATERNARY_MI2S_RX,
+					&ak4376_mi2s_rx_clk);
+		} else if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
+			ak4376_mi2s_rx_clk.clk_val1 = Q6AFE_LPASS_IBIT_CLK_1_P536_MHZ;
+			ret = afe_set_lpass_clock(
+					AFE_PORT_ID_QUATERNARY_MI2S_TX,
+					&ak4376_mi2s_rx_clk);
+		} else {
+			pr_err("%s:Not valid substream.\n", __func__);
+		}
+
+		if (ret < 0)
+			pr_err("%s:afe_set_lpass_clock failed %d\n",
+					__func__, ret);
+	} else {
+		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+			ak4376_mi2s_rx_clk.clk_val1 = Q6AFE_LPASS_IBIT_CLK_DISABLE;
+			ret = afe_set_lpass_clock(
+				AFE_PORT_ID_QUATERNARY_MI2S_RX,
+				&ak4376_mi2s_rx_clk);
+		} else if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
+			ak4376_mi2s_rx_clk.clk_val1 = Q6AFE_LPASS_IBIT_CLK_DISABLE;
+			ret = afe_set_lpass_clock(
+				AFE_PORT_ID_QUATERNARY_MI2S_TX,
+				&ak4376_mi2s_rx_clk);
+		} else
+			pr_err("%s:Not valid substream %d\n", __func__,
+					substream->stream);
+
+		if (ret < 0)
+				pr_err("%s:afe_set_lpass_clock failed ret=%d\n",
+					__func__, ret);
+	}
+	return ret;
+}
+#else
 static int quat_mi2s_clk_ctl(struct snd_pcm_substream *substream, bool enable)
 {
 	int ret = 0;
@@ -1566,7 +1796,7 @@ static int quat_mi2s_clk_ctl(struct snd_pcm_substream *substream, bool enable)
 	}
 	return ret;
 }
-
+#endif
 static int quin_mi2s_sclk_ctl(struct snd_pcm_substream *substream, bool enable)
 {
 	int ret = 0;
@@ -1639,6 +1869,28 @@ static struct notifier_block adsp_state_notifier_block = {
 	.priority = -INT_MAX,
 };
 
+#ifdef CONFIG_SND_SOC_AK4376
+void msm_quat_mi2s_snd_shutdown(struct snd_pcm_substream *substream)
+{
+	int ret = 0;
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_card *card = rtd->card;
+	struct msm8952_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
+
+		ret = quat_mi2s_clk_ctl(substream, false);
+		if (ret < 0)
+			pr_err("%s:clock disable failed\n", __func__);
+		if (atomic_read(&pdata->clk_ref.quat_mi2s_clk_ref) > 0)
+			atomic_dec(&pdata->clk_ref.quat_mi2s_clk_ref);
+		ret = msm_gpioset_suspend(CLIENT_WCD_EXT, "quat_i2s");
+		if (ret < 0) {
+			pr_err("%s: failed to disable quat gpio's state\n",
+					__func__);
+			return;
+		}
+
+}
+#else
 void msm_quat_mi2s_snd_shutdown(struct snd_pcm_substream *substream)
 {
 	int ret = 0;
@@ -1663,7 +1915,7 @@ void msm_quat_mi2s_snd_shutdown(struct snd_pcm_substream *substream)
 		}
 	}
 }
-
+#endif
 int msm_prim_auxpcm_startup(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
@@ -1711,7 +1963,53 @@ void msm_prim_auxpcm_shutdown(struct snd_pcm_substream *substream)
 		pr_err("%s(): configure gpios failed = %s\n",
 				__func__, "quat_i2s");
 }
+#ifdef CONFIG_SND_SOC_AK4376
+int msm_quat_mi2s_snd_startup(struct snd_pcm_substream *substream)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_card *card = rtd->card;
+	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+	struct msm8952_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
+	int ret = 0, val;
 
+	pr_debug("%s(): substream = %s  stream = %d\n", __func__,
+		 substream->name, substream->stream);
+
+
+	if (pdata->vaddr_gpio_mux_mic_ctl) {
+		val = ioread32(pdata->vaddr_gpio_mux_mic_ctl);
+		val = val | 0x02020002;
+		iowrite32(val, pdata->vaddr_gpio_mux_mic_ctl);
+	}
+	ret = quat_mi2s_clk_ctl(substream, true);
+	if (ret < 0) {
+		pr_err("%s: failed to enable bit clock\n",
+				__func__);
+		return ret;
+	}
+	ret = msm_gpioset_activate(CLIENT_WCD_EXT, "quat_i2s");
+	if (ret < 0) {
+		pr_err("%s: failed to actiavte the quat gpio's state\n",
+				__func__);
+		goto err;
+	}
+
+
+	if (atomic_inc_return(&pdata->clk_ref.quat_mi2s_clk_ref) == 1) {
+		ret = snd_soc_dai_set_fmt(cpu_dai, SND_SOC_DAIFMT_CBS_CFS);
+		if (ret < 0)
+			pr_err("%s: set fmt cpu dai failed\n", __func__);
+	}
+	return ret;
+
+err:
+	ret = quat_mi2s_clk_ctl(substream, false);
+	if (ret < 0)
+		pr_err("%s:failed to disable sclk\n", __func__);
+	return ret;
+}
+
+#else
 int msm_quat_mi2s_snd_startup(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
@@ -1759,7 +2057,7 @@ err:
 		pr_err("%s:failed to disable sclk\n", __func__);
 	return ret;
 }
-
+#endif
 int msm_quin_mi2s_snd_startup(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
@@ -1789,6 +2087,8 @@ int msm_quin_mi2s_snd_startup(struct snd_pcm_substream *substream)
 		goto err;
 	}
 	if (atomic_inc_return(&pdata->clk_ref.quin_mi2s_clk_ref) == 1) {
+		
+		pr_err("snd_soc_dai_set_fmt\n");
 		ret = snd_soc_dai_set_fmt(cpu_dai, SND_SOC_DAIFMT_CBS_CFS);
 		if (ret < 0)
 			pr_debug("%s: set fmt cpu dai failed\n", __func__);
@@ -1911,6 +2211,9 @@ static const struct snd_soc_dapm_widget msm8952_tasha_dapm_widgets[] = {
 	SND_SOC_DAPM_SPK("Lineout_2 amp", NULL),
 	SND_SOC_DAPM_SPK("Lineout_4 amp", NULL),
 	SND_SOC_DAPM_MIC("Handset Mic", NULL),
+	#ifdef CONFIG_ZTEMT_AUDIO
+	SND_SOC_DAPM_MIC("Sub Handset Mic", NULL),
+	#endif
 	SND_SOC_DAPM_MIC("Headset Mic", NULL),
 	SND_SOC_DAPM_MIC("Secondary Mic", NULL),
 	SND_SOC_DAPM_MIC("ANCRight Headset Mic", NULL),
@@ -2042,6 +2345,9 @@ int msm_audrx_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_dapm_ignore_suspend(dapm, "Lineout_2 amp");
 	snd_soc_dapm_ignore_suspend(dapm, "Lineout_4 amp");
 	snd_soc_dapm_ignore_suspend(dapm, "Handset Mic");
+	#ifdef CONFIG_ZTEMT_AUDIO
+	snd_soc_dapm_ignore_suspend(dapm, "Sub Handset Mic");
+	#endif
 	snd_soc_dapm_ignore_suspend(dapm, "Headset Mic");
 	snd_soc_dapm_ignore_suspend(dapm, "ANCRight Headset Mic");
 	snd_soc_dapm_ignore_suspend(dapm, "ANCLeft Headset Mic");
@@ -2373,7 +2679,7 @@ static int msm8952_asoc_machine_probe(struct platform_device *pdev)
 	int num_strings = 0;
 	int ret, i;
 	struct resource *muxsel;
-
+	printk("%s, [lhd]  enter  \n ",__func__);
 	pdata = devm_kzalloc(&pdev->dev,
 			sizeof(struct msm8952_asoc_mach_data), GFP_KERNEL);
 	if (!pdata) {

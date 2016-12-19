@@ -26,6 +26,12 @@
 
 static struct v4l2_file_operations msm_sensor_v4l2_subdev_fops;
 
+// ZTEMT: li.bin223 add for support 4lane imx179 ---start
+#ifdef CONFIG_ZTEMT_HW_VERSION
+static  unsigned char g_pcb_version = '0';
+extern void  ztemt_get_hw_pcb_version(char *);
+#endif
+// ZTEMT: li.bin223 add for support 4lane imx179 ---end
 /* Static declaration */
 static struct msm_sensor_ctrl_t *g_sctrl[MAX_CAMERAS];
 
@@ -649,6 +655,23 @@ static int32_t msm_sensor_driver_is_special_support(
 	return rc;
 }
 
+// ZTEMT: li.bin223 add for support 4lane imx179 ---start
+#ifdef CONFIG_ZTEMT_HW_VERSION
+static char get_pcb_version(void) {
+	char pcb_version[5] ="";
+	ztemt_get_hw_pcb_version(pcb_version);
+	pcb_version[4] ='\0';
+
+	if(!strncmp(pcb_version,"unknow",strlen("unknow")) || *(pcb_version+3) < 'A' ||*(pcb_version+3) > 'I' ){
+		return '0';
+	}
+	else{
+		return *(pcb_version+3);
+	}
+}
+#endif
+// ZTEMT: li.bin223 add for support 4lane imx179 ---end
+
 /* static function definition */
 int32_t msm_sensor_driver_probe(void *setting,
 	struct msm_sensor_info_t *probed_info, char *entity_name)
@@ -755,6 +778,29 @@ int32_t msm_sensor_driver_probe(void *setting,
 	CDBG("power up size %d power down size %d\n",
 		slave_info->power_setting_array.size,
 		slave_info->power_setting_array.size_down);
+
+	// ZTEMT: li.bin223 add for support 4lane imx179 ---start
+	
+#ifdef CONFIG_ZTEMT_HW_VERSION
+	if(slave_info->camera_id == CAMERA_1) {
+		if(slave_info->sensor_name && !strncmp(slave_info->sensor_name, "imx179", strlen("imx179"))){//Only imx179 need to match with PCB
+			if( g_pcb_version >= 'B' && g_pcb_version <= 'I' && !strcmp(slave_info->sensor_name, "imx179_4lane")){
+				pr_info("wdy pcb match success  pcb_version=%c  sensor = %s\n", g_pcb_version, slave_info->sensor_name);
+			}
+			else if(g_pcb_version == 'A' && !strcmp(slave_info->sensor_name, "imx179")){
+				pr_info("wdy pcb match success  pcb_version=%c  sensor = %s\n", g_pcb_version, slave_info->sensor_name);
+			}
+			else if(g_pcb_version == '0' && !strcmp(slave_info->sensor_name, "imx179_4lane")){
+				pr_info("wdy get pcb_version failed,try to probe default sensor = imx179_4lane");
+			}
+			else{
+				pr_err("wdy pcb match fail pcb_version=%c  sensor = %s\n", g_pcb_version, slave_info->sensor_name);
+				goto free_slave_info;
+			}
+		}
+	}
+#endif
+	// ZTEMT: li.bin223 add for support 4lane imx179 ---end
 
 	if (slave_info->is_init_params_valid) {
 		CDBG("position %d",
@@ -929,6 +975,63 @@ CSID_TG:
 		pr_err("%s power up failed", slave_info->sensor_name);
 		goto free_camera_info;
 	}
+ //added by congshan start
+	if (!strcmp(s_ctrl->sensordata->sensor_name, "s5k3m2")) {
+	    #define ADDR_MODULE_ID 0x00
+	    #define ADDR_PD_DAY 0x02
+	    #define ADDR_PD_MONTH 0x03
+	    #define ADDR_PD_YEAR 0x05
+		uint16_t module_id = 0;
+		uint16_t year = 0;
+		uint16_t month = 0;
+		uint16_t day = 0;
+		enum msm_camera_i2c_reg_addr_type temp_addr_type;
+		temp_addr_type = s_ctrl->sensor_i2c_client->addr_type;
+		s_ctrl->sensor_i2c_client->cci_client->sid = 0xA0 >> 1;
+		s_ctrl->sensor_i2c_client->addr_type = MSM_CAMERA_I2C_WORD_ADDR;
+		rc = s_ctrl->sensor_i2c_client->i2c_func_tbl->i2c_read(
+			s_ctrl->sensor_i2c_client, ADDR_MODULE_ID,
+			&module_id, MSM_CAMERA_I2C_BYTE_DATA);
+		if (rc < 0)
+			pr_err("%s read error %d\n", __func__, __LINE__);
+		rc = s_ctrl->sensor_i2c_client->i2c_func_tbl->i2c_read(
+			s_ctrl->sensor_i2c_client, ADDR_PD_YEAR,
+			&year, MSM_CAMERA_I2C_BYTE_DATA);
+		if (rc < 0)
+			pr_err("%s read error %d\n", __func__, __LINE__);
+		rc = s_ctrl->sensor_i2c_client->i2c_func_tbl->i2c_read(
+			s_ctrl->sensor_i2c_client, ADDR_PD_MONTH,
+			&month, MSM_CAMERA_I2C_BYTE_DATA);
+		if (rc < 0)
+			pr_err("%s read error %d\n", __func__, __LINE__);
+		rc = s_ctrl->sensor_i2c_client->i2c_func_tbl->i2c_read(
+			s_ctrl->sensor_i2c_client, ADDR_PD_DAY,
+			&day, MSM_CAMERA_I2C_BYTE_DATA);
+		if (rc < 0)
+			pr_err("%s read error %d\n", __func__, __LINE__);
+		pr_err("s5k3m2 module_id=%x, year=%d, month=%d, day=%d\n", module_id, year, month, day);
+		if ((0x6 == module_id) && (year < 16) && (month < 11)) {
+			if (month < 10) {
+				s_ctrl->sensordata->sensor_info->sensor_mount_angle = 270;
+				pr_err("this is s5k3m2 qtec old module \n");
+			} else if ((month == 10) && (day < 15)) {
+				s_ctrl->sensordata->sensor_info->sensor_mount_angle = 270;
+				pr_err("this is s5k3m2 qtec old module \n");
+			}
+		} else if ((0x1 == module_id) && (year < 16) && (month < 11)) {
+			if (month < 10) {
+				s_ctrl->sensordata->sensor_info->sensor_mount_angle = 270;
+				pr_err("this is s5k3m2 sunny old module \n");
+			} else if ((month == 10) && (day < 32)) {
+				s_ctrl->sensordata->sensor_info->sensor_mount_angle = 270;
+				pr_err("this is s5k3m2 sunny old module \n");
+			}
+		}
+		s_ctrl->sensor_i2c_client->cci_client->sid =
+			s_ctrl->sensordata->slave_info->sensor_slave_addr >> 1;
+		s_ctrl->sensor_i2c_client->addr_type = temp_addr_type;
+	}
+	//added by congshan end
 
 	pr_err("%s probe succeeded", slave_info->sensor_name);
 
@@ -1400,6 +1503,9 @@ static int __init msm_sensor_driver_init(void)
 	int32_t rc = 0;
 
 	CDBG("Enter");
+	#ifdef CONFIG_ZTEMT_HW_VERSION
+	g_pcb_version = get_pcb_version();//ZTEMT: wangdeyong add
+	#endif
 	rc = platform_driver_probe(&msm_sensor_platform_driver,
 		msm_sensor_driver_platform_probe);
 	if (!rc) {

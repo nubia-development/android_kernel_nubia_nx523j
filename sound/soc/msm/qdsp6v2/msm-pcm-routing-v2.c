@@ -53,6 +53,7 @@ static int get_cal_path(int path_type);
 #define EC_PORT_ID_TERTIARY_MI2S_TX   3
 #define EC_PORT_ID_QUATERNARY_MI2S_TX 4
 #define EC_PORT_ID_SLIMBUS_1_TX       5
+#define EC_PORT_ID_QUIN_TX            6
 
 static struct mutex routing_lock;
 
@@ -1586,6 +1587,12 @@ static int msm_routing_ec_ref_rx_put(struct snd_kcontrol *kcontrol,
 		msm_route_ec_ref_rx = 10;
 		ec_ref_port_id = SLIMBUS_1_TX;
 		break;
+#ifdef CONFIG_SND_SOC_TFA9890
+		case 11:
+		msm_route_ec_ref_rx = 11;
+		ec_ref_port_id = AFE_PORT_ID_QUINARY_MI2S_RX;
+		break;
+#endif
 	default:
 		msm_route_ec_ref_rx = 0; /* NONE */
 		pr_err("%s EC ref rx %ld not valid\n",
@@ -1604,9 +1611,17 @@ static int msm_routing_ec_ref_rx_put(struct snd_kcontrol *kcontrol,
 static const char *const ec_ref_rx[] = { "None", "SLIM_RX", "I2S_RX",
 	"PRI_MI2S_TX", "SEC_MI2S_TX",
 	"TERT_MI2S_TX", "QUAT_MI2S_TX", "SEC_I2S_RX", "PROXY_RX",
+#ifdef CONFIG_SND_SOC_TFA9890
+    "SLIM_5_RX", "SLIM_1_TX","QUIN_MI2S_RX"};
+#else
 	"SLIM_5_RX", "SLIM_1_TX"};
+#endif
 static const struct soc_enum msm_route_ec_ref_rx_enum[] = {
+#ifdef CONFIG_SND_SOC_TFA9890
+    SOC_ENUM_SINGLE_EXT(12, ec_ref_rx),
+#else
 	SOC_ENUM_SINGLE_EXT(11, ec_ref_rx),
+#endif
 };
 
 static const struct snd_kcontrol_new ext_ec_ref_mux_ul1 =
@@ -1691,6 +1706,10 @@ static int msm_routing_ext_ec_put(struct snd_kcontrol *kcontrol,
 		msm_route_ext_ec_ref = SLIMBUS_1_TX;
 		state = true;
 		break;
+	case EC_PORT_ID_QUIN_TX:
+		msm_route_ext_ec_ref = AFE_PORT_ID_QUINARY_MI2S_TX;
+		state = true;
+		break;
 	default:
 		msm_route_ext_ec_ref = AFE_PORT_INVALID;
 		break;
@@ -1707,10 +1726,10 @@ static int msm_routing_ext_ec_put(struct snd_kcontrol *kcontrol,
 
 static const char * const ext_ec_ref_rx[] = {"NONE", "PRI_MI2S_TX",
 					     "SEC_MI2S_TX", "TERT_MI2S_TX",
-					     "QUAT_MI2S_TX", "SLIM_1_TX"};
+					     "QUAT_MI2S_TX", "SLIM_1_TX","QUIN_MI2S_TX"};
 
 static const struct soc_enum msm_route_ext_ec_ref_rx_enum[] = {
-	SOC_ENUM_SINGLE_EXT(6, ext_ec_ref_rx),
+	SOC_ENUM_SINGLE_EXT(7, ext_ec_ref_rx),
 };
 
 static const struct snd_kcontrol_new voc_ext_ec_mux =
@@ -3168,6 +3187,14 @@ static const struct snd_kcontrol_new quin_mi2s_rx_voice_mixer_controls[] = {
 	SOC_SINGLE_EXT("QCHAT", MSM_BACKEND_DAI_QUINARY_MI2S_RX,
 	MSM_FRONTEND_DAI_QCHAT, 1, 0, msm_routing_get_voice_mixer,
 	msm_routing_put_voice_mixer),
+	#ifdef CONFIG_SND_SOC_TFA9890
+	SOC_SINGLE_EXT("VoiceMMode1", MSM_BACKEND_DAI_QUINARY_MI2S_RX,
+	MSM_FRONTEND_DAI_VOICEMMODE1, 1, 0, msm_routing_get_voice_mixer,
+	msm_routing_put_voice_mixer),
+	SOC_SINGLE_EXT("VoiceMMode2", MSM_BACKEND_DAI_QUINARY_MI2S_RX,
+	MSM_FRONTEND_DAI_VOICEMMODE2, 1, 0, msm_routing_get_voice_mixer,
+	msm_routing_put_voice_mixer),
+	#endif
 };
 
 static const struct snd_kcontrol_new afe_pcm_rx_voice_mixer_controls[] = {
@@ -5759,12 +5786,17 @@ static const struct snd_soc_dapm_route intercon[] = {
 	{"QUIN_MI2S_RX_Voice Mixer", "Voice Stub", "VOICE_STUB_DL"},
 	{"QUIN_MI2S_RX_Voice Mixer", "Voice2 Stub", "VOICE2_STUB_DL"},
 	{"QUIN_MI2S_RX_Voice Mixer", "QCHAT", "QCHAT_DL"},
+#ifdef CONFIG_SND_SOC_TFA9890
+{"QUIN_MI2S_RX_Voice Mixer", "VoiceMMode1", "VOICEMMODE1_DL"},
+{"QUIN_MI2S_RX_Voice Mixer", "VoiceMMode2", "VOICEMMODE2_DL"},
+#endif
 	{"QUIN_MI2S_RX", NULL, "QUIN_MI2S_RX_Voice Mixer"},
 
 	{"VOC_EXT_EC MUX", "PRI_MI2S_TX" , "PRI_MI2S_TX"},
 	{"VOC_EXT_EC MUX", "SEC_MI2S_TX" , "SEC_MI2S_TX"},
 	{"VOC_EXT_EC MUX", "TERT_MI2S_TX" , "TERT_MI2S_TX"},
 	{"VOC_EXT_EC MUX", "QUAT_MI2S_TX" , "QUAT_MI2S_TX"},
+	{"VOC_EXT_EC MUX", "QUIN_MI2S_TX" , "QUIN_MI2S_TX"},
 	{"VOC_EXT_EC MUX", "SLIM_1_TX" ,    "SLIMBUS_1_TX"},
 	{"CS-VOICE_UL1", NULL, "VOC_EXT_EC MUX"},
 	{"VOIP_UL", NULL, "VOC_EXT_EC MUX"},
@@ -5778,6 +5810,9 @@ static const struct snd_soc_dapm_route intercon[] = {
 	{"AUDIO_REF_EC_UL1 MUX", "TERT_MI2S_TX" , "TERT_MI2S_TX"},
 	{"AUDIO_REF_EC_UL1 MUX", "QUAT_MI2S_TX" , "QUAT_MI2S_TX"},
 	{"AUDIO_REF_EC_UL1 MUX", "SLIM_1_TX" , "SLIMBUS_1_TX"},
+#ifdef CONFIG_SND_SOC_TFA9890
+	{"AUDIO_REF_EC_UL1 MUX", "QUIN_MI2S_RX" , "QUIN_MI2S_RX"},
+#endif
 
 	{"AUDIO_REF_EC_UL2 MUX", "PRI_MI2S_TX" , "PRI_MI2S_TX"},
 	{"AUDIO_REF_EC_UL2 MUX", "SEC_MI2S_TX" , "SEC_MI2S_TX"},

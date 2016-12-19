@@ -10,7 +10,7 @@
  * GNU General Public License for more details.
  */
 
-#define pr_fmt(fmt) "%s: " fmt, __func__
+#define pr_fmt(fmt) "SMBCHG:%s: " fmt, __func__
 
 #include <linux/i2c.h>
 #include <linux/debugfs.h>
@@ -605,6 +605,9 @@ static int smb1351_fastchg_current_set(struct smb1351_charger *chip,
 	int i, rc;
 	bool is_pre_chg = false;
 
+	#ifdef CONFIG_ZTEMT_SMB1351_CHARGER
+	pr_info("-NBDB-1351ibatt: fastchg current_ma = %d\n", fastchg_current);
+	#endif
 
 	if ((fastchg_current < SMB1351_CHG_PRE_MIN_MA) ||
 		(fastchg_current > SMB1351_CHG_FAST_MAX_MA)) {
@@ -677,6 +680,10 @@ static int smb1351_float_voltage_set(struct smb1351_charger *chip,
 								int vfloat_mv)
 {
 	u8 temp;
+
+	#ifdef CONFIG_ZTEMT_SMB1351_CHARGER
+	pr_info("vfloat_mv = %d\n", vfloat_mv);
+	#endif
 
 	if ((vfloat_mv < MIN_FLOAT_MV) || (vfloat_mv > MAX_FLOAT_MV)) {
 		pr_err("bad float voltage mv =%d asked to set\n", vfloat_mv);
@@ -1111,8 +1118,13 @@ static int smb1351_usb_suspend(struct smb1351_charger *chip, int reason,
 	else
 		suspended |= reason;
 
+	#ifdef CONFIG_ZTEMT_SMB1351_CHARGER
+	pr_info("-NBDB-1351enusb: reason=%d set_suspend=%d new_suspended=%d\n",
+						reason, suspend, suspended);
+	#else
 	pr_debug("new suspended_status = %d\n", suspended);
-
+    #endif
+	
 	rc = smb1351_masked_write(chip, CMD_INPUT_LIMIT_REG,
 				CMD_SUSPEND_MODE_BIT,
 				suspended ? CMD_SUSPEND_MODE_BIT : 0);
@@ -1162,8 +1174,12 @@ static int smb1351_set_usb_chg_current(struct smb1351_charger *chip,
 	int i, rc = 0;
 	u8 reg = 0, mask = 0;
 
+	#ifdef CONFIG_ZTEMT_SMB1351_CHARGER
+    pr_info("-NBDB-1351iusb: USB current_ma = %d\n", current_ma);
+	#else
 	pr_debug("USB current_ma = %d\n", current_ma);
-
+    #endif
+	
 	if (chip->chg_autonomous_mode) {
 		pr_debug("Charger in autonomous mode\n");
 		return 0;
@@ -1359,6 +1375,10 @@ static int smb1351_parallel_set_chg_present(struct smb1351_charger *chip,
 				chip->parallel_charger_present, present);
 		return 0;
 	}
+
+	#ifdef CONFIG_ZTEMT_SMB1351_CHARGER
+	pr_info("-NBDB-1351parallel chg present = %d\n", present);
+	#endif
 
 	if (present) {
 		/* Check if SMB1351 is present */

@@ -12,6 +12,24 @@ menuconfig INPUT_TOUCHSCREEN
 if INPUT_TOUCHSCREEN
 
 source "drivers/input/touchscreen/synaptics_dsx/Kconfig"
+source "drivers/input/touchscreen/cyttsp/Kconfig"
+source "drivers/input/touchscreen/nubia_synaptics_dsx/Kconfig"
+source "drivers/input/touchscreen/atmel/Kconfig"
+source "drivers/input/touchscreen/melfas_mms400/Kconfig"
+source "drivers/input/touchscreen/cyttsp5/Kconfig"
+source "drivers/input/touchscreen/gt1x/Kconfig"
+config ZTEMT_PRESS_TOUCHSCREEN_CYPRESS
+       tristate "ZTEMT PRESS TOUCHSCREEN CYPRESS"
+       help
+         Say Y here if you have a Press Touchscreen and want to enable
+         If unsure, say N.
+         To compile this driver as a module, choose M here: the
+         module will be called cypress.
+
+config TOUCHSCREEN_CYPRESS_CYTTSP3_DEVICETREE_SUPPORT
+       tristate "CYPRESS FORCE DEVICE TREE SUPPORT"
+       help
+         Say Y here if you want to enable device tree
 
 config TOUCHSCREEN_88PM860X
 	tristate "Marvell 88PM860x touchscreen"

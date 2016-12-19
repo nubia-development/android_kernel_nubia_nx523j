@@ -151,6 +151,15 @@
 #define POLL_TIME_AUTO_RES_ERR_NS	(5 * NSEC_PER_MSEC)
 
 #define LRA_POS_FREQ_COUNT		6
+
+//add debug by wxf
+//#define HAPTIC_DEBUG
+#ifdef HAPTIC_DEBUG
+	#define hap_debug(format , ...)   printk(format, ##__VA_ARGS__)
+#else
+	#define hap_debug(format , ...)
+#endif
+
 int lra_play_rate_code[LRA_POS_FREQ_COUNT];
 
 /* haptic debug register set */
@@ -333,6 +342,9 @@ struct qpnp_hap {
 	bool sup_brake_pat;
 	bool correct_lra_drive_freq;
 	bool misc_trim_error_rc19p2_clk_reg_present;
+#ifdef CONFIG_FEATURE_ZTEMT_HAPTIC_VIBRATOR
+	u32 ztemt_vibrator_ms;
+#endif
 };
 
 static struct qpnp_hap *ghap;
@@ -702,6 +714,8 @@ static int qpnp_hap_vmax_config(struct qpnp_hap *hap)
 	else if (hap->vmax_mv > QPNP_HAP_VMAX_MAX_MV)
 		hap->vmax_mv = QPNP_HAP_VMAX_MAX_MV;
 
+	hap_debug("%s:%d:vmax=%d\n",__func__, __LINE__, hap->vmax_mv);
+	hap_debug("%s:%d:addr=%d\n",__func__, __LINE__, QPNP_HAP_VMAX_REG(hap->base));
 	rc = qpnp_hap_read_reg(hap, &reg, QPNP_HAP_VMAX_REG(hap->base));
 	if (rc < 0)
 		return rc;
@@ -1291,6 +1305,66 @@ static ssize_t qpnp_hap_ramp_test_data_show(struct device *dev,
 
 }
 
+static ssize_t qpnp_hap_vmax_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct timed_output_dev *timed_dev = dev_get_drvdata(dev);
+	struct qpnp_hap *hap = container_of(timed_dev, struct qpnp_hap,
+					 timed_dev);
+
+	hap_debug("%s:%d:vmax=%d\n",__func__, __LINE__, hap->vmax_mv);
+	hap_debug("%s:%d:clk=%d\n",   __func__,__LINE__,hap->int_pwm_freq_khz);
+	return snprintf(buf, PAGE_SIZE, "%d\n", hap->vmax_mv);
+}
+/* sysfs store for vmax */
+static ssize_t qpnp_hap_vmax_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int data, rc;
+
+	struct timed_output_dev *timed_dev = dev_get_drvdata(dev);
+	struct qpnp_hap *hap = container_of(timed_dev, struct qpnp_hap,
+					 timed_dev);
+	
+	if (sscanf(buf, "%d", &data) != 1)
+		return -EINVAL;
+	hap->vmax_mv = data;
+
+	rc=qpnp_hap_vmax_config(hap);
+	if (rc<0)
+		return rc;
+
+	hap_debug("%s:%d:vmax=%d\n",__func__, __LINE__, hap->vmax_mv);
+	hap_debug("%s:%d:clk=%d\n",   __func__,__LINE__,hap->int_pwm_freq_khz);
+	return count;
+}
+
+static ssize_t qpnp_hap_clk_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct timed_output_dev *timed_dev = dev_get_drvdata(dev);
+	struct qpnp_hap *hap = container_of(timed_dev, struct qpnp_hap,
+					 timed_dev);
+
+	hap_debug("%s:%d:vmax=%d\n",__func__, __LINE__, hap->vmax_mv);
+	hap_debug("%s:%d:clk=%d\n",   __func__,__LINE__,hap->int_pwm_freq_khz);
+	return snprintf(buf, PAGE_SIZE, "%d\n", hap->int_pwm_freq_khz);
+}
+
+static ssize_t qpnp_hap_wave_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct timed_output_dev *timed_dev = dev_get_drvdata(dev);
+	struct qpnp_hap *hap = container_of(timed_dev, struct qpnp_hap,
+					 timed_dev);
+	char *str;
+	if(hap->wave_shape==QPNP_HAP_WAV_SINE)
+		str ="sine";
+	else if(hap->wave_shape==QPNP_HAP_WAV_SQUARE)
+		str = "square";
+	return snprintf(buf, PAGE_SIZE, "%s\n", str);	
+}
+
 /* sysfs attributes */
 static struct device_attribute qpnp_hap_attrs[] = {
 	__ATTR(wf_s0, (S_IRUGO | S_IWUSR | S_IWGRP),
@@ -1338,6 +1412,15 @@ static struct device_attribute qpnp_hap_attrs[] = {
 	__ATTR(min_max_test, (S_IRUGO | S_IWUSR | S_IWGRP),
 			qpnp_hap_min_max_test_data_show,
 			qpnp_hap_min_max_test_data_store),
+	__ATTR(vmax_mv, (S_IRUGO | S_IWUSR | S_IWGRP),     
+			qpnp_hap_vmax_show,
+			qpnp_hap_vmax_store),	
+	__ATTR(clk_set, (S_IRUGO | S_IWUSR | S_IWGRP),     
+			qpnp_hap_clk_show,
+			NULL),
+	__ATTR(wave,(S_IRUGO | S_IWUSR | S_IWGRP),     
+			qpnp_hap_wave_show,
+			NULL),	
 };
 
 static void calculate_lra_code(struct qpnp_hap *hap)
@@ -1574,6 +1657,9 @@ static void qpnp_hap_td_enable(struct timed_output_dev *dev, int value)
 		}
 		hap->state = 0;
 	} else {
+#ifdef CONFIG_FEATURE_ZTEMT_HAPTIC_VIBRATOR
+	value = value +hap->ztemt_vibrator_ms;
+#endif
 		value = (value > hap->timeout_ms ?
 				 hap->timeout_ms : value);
 		hap->state = 1;
@@ -2007,6 +2093,18 @@ static int qpnp_hap_parse_dt(struct qpnp_hap *hap)
 		return rc;
 	}
 
+#ifdef CONFIG_FEATURE_ZTEMT_HAPTIC_VIBRATOR
+	hap->ztemt_vibrator_ms=0;
+	rc = of_property_read_u32(spmi->dev.of_node,
+			"qcom,ztemt_vibrator_ms", &temp);
+	if (!rc) {
+		hap->ztemt_vibrator_ms = temp;
+	} else if (rc != -EINVAL) {
+		dev_err(&spmi->dev, "Unable to read ztemt_vibrator_ms\n");
+		return rc;
+	}
+#endif
+
 	hap->act_type = QPNP_HAP_LRA;
 	rc = of_property_read_string(spmi->dev.of_node,
 			"qcom,actuator-type", &temp_str);
@@ -2256,7 +2354,8 @@ static int qpnp_haptic_probe(struct spmi_device *spmi)
 		dev_err(&spmi->dev, "hap config failed\n");
 		return rc;
 	}
-
+	hap_debug("%s:vmax=%d\n",__func__, hap->vmax_mv);
+	hap_debug("%s:clk=%d\n",__func__,hap->int_pwm_freq_khz);
 	mutex_init(&hap->lock);
 	mutex_init(&hap->wf_lock);
 	INIT_WORK(&hap->work, qpnp_hap_worker);

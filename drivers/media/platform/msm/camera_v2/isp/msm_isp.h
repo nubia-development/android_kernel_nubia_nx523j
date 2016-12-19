@@ -55,8 +55,8 @@
 #define VFE_CLK_INFO_MAX 16
 #define STATS_COMP_BIT_MASK 0x1FF
 
-#define MSM_ISP_MIN_AB 100000000
-#define MSM_ISP_MIN_IB 100000000
+#define MSM_ISP_MIN_AB 450000000
+#define MSM_ISP_MIN_IB 900000000 //ZTEMT: li.bin223 modify for increase bus frequence
 
 #define MAX_VFE 2
 
