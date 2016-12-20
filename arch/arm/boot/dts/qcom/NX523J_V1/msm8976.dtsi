@@ -2356,11 +2356,7 @@
 				"msm-dai-q6-dev.12292", "msm-dai-q6-dev.12293";
 		asoc-codec = <&stub_codec>;
 		asoc-codec-names = "msm-stub-codec.1";
-		qcom,max-aux-codec = <2>;
-		qcom,aux-codec = "wsa881x.20170211", "wsa881x.20170212",
-				 "wsa881x.21170213", "wsa881x.21170214";
-		qcom,aux-codec-prefix = "SpkrLeft", "SpkrRight",
-					"SpkrLeft", "SpkrRight";
+
 	};
 
 	wcd9xxx_intc: wcd9xxx-irq {
@@ -2736,7 +2732,6 @@
 		/* GPIO output to mss */
 		qcom,gpio-force-stop = <&smp2pgpio_ssr_smp2p_1_out 0 0>;
 		linux,contiguous-region = <&modem_mem>;
-		qcom,mx-spike-wa;
 	};
 
 	mcd {
@@ -2765,7 +2760,7 @@
 #include "msm-pm8004.dtsi"
 #include "msm8976-regulator.dtsi"
 #include "../msm-gdsc-8916.dtsi"
-#include "../msm8976-camera.dtsi"
+#include "msm8976-camera.dtsi"
 
 &gdsc_venus {
 	clock-names = "bus_clk", "core_clk";
