@@ -768,14 +768,14 @@ int32_t msm_sensor_driver_probe(void *setting,
 	}
 
 	/* Print slave info */
-	CDBG("camera id %d Slave addr 0x%X addr_type %d\n",
+	pr_err("camera id %d Slave addr 0x%X addr_type %d\n",
 		slave_info->camera_id, slave_info->slave_addr,
 		slave_info->addr_type);
-	CDBG("sensor_id_reg_addr 0x%X sensor_id 0x%X sensor id mask %d",
+	pr_err("sensor_id_reg_addr 0x%X sensor_id 0x%X sensor id mask %d",
 		slave_info->sensor_id_info.sensor_id_reg_addr,
 		slave_info->sensor_id_info.sensor_id,
 		slave_info->sensor_id_info.sensor_id_mask);
-	CDBG("power up size %d power down size %d\n",
+	pr_err("power up size %d power down size %d\n",
 		slave_info->power_setting_array.size,
 		slave_info->power_setting_array.size_down);
 
@@ -825,8 +825,6 @@ int32_t msm_sensor_driver_probe(void *setting,
 		rc = -EINVAL;
 		goto free_slave_info;
 	}
-
-	CDBG("s_ctrl[%d] %p", slave_info->camera_id, s_ctrl);
 
 	if (s_ctrl->sensordata->special_support_size > 0) {
 		if (!msm_sensor_driver_is_special_support(s_ctrl,
@@ -1033,7 +1031,7 @@ CSID_TG:
 	}
 	//added by congshan end
 
-	pr_err("%s probe succeeded", slave_info->sensor_name);
+	pr_err("%s probe succeeded\n", slave_info->sensor_name);
 
 	/*
 	  Set probe succeeded flag to 1 so that no other camera shall
@@ -1062,9 +1060,12 @@ CSID_TG:
 		pr_err("failed: camera creat v4l2 rc %d", rc);
 		goto camera_power_down;
 	}
-
-	/* Power down */
+	
+	
+				/* Power down */
 	s_ctrl->func_tbl->sensor_power_down(s_ctrl);
+	
+
 
 	rc = msm_sensor_fill_slave_info_init_params(
 		slave_info,
@@ -1094,7 +1095,6 @@ CSID_TG:
 	msm_sensor_fill_sensor_info(s_ctrl, probed_info, entity_name);
 
 	return rc;
-
 camera_power_down:
 	s_ctrl->func_tbl->sensor_power_down(s_ctrl);
 free_camera_info:

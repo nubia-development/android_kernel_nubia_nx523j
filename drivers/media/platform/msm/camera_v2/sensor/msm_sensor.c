@@ -140,7 +140,7 @@ static int32_t msm_sensor_get_dt_data(struct device_node *of_node,
 
 	rc = of_property_read_string(of_node, "qcom,sensor-name",
 		&sensordata->sensor_name);
-	CDBG("%s qcom,sensor-name %s, rc %d\n", __func__,
+	pr_err("wdy %s qcom,sensor-name %s, rc %d\n", __func__,
 		sensordata->sensor_name, rc);
 	if (rc < 0) {
 		pr_err("%s failed %d\n", __func__, __LINE__);
@@ -149,7 +149,7 @@ static int32_t msm_sensor_get_dt_data(struct device_node *of_node,
 
 	rc = of_property_read_u32(of_node, "qcom,cci-master",
 		&s_ctrl->cci_i2c_master);
-	CDBG("%s qcom,cci-master %d, rc %d\n", __func__, s_ctrl->cci_i2c_master,
+	pr_err("wdy %s qcom,cci-master %d, rc %d\n", __func__, s_ctrl->cci_i2c_master,
 		rc);
 	if (rc < 0) {
 		/* Set default master 0 */
@@ -239,7 +239,7 @@ static int32_t msm_sensor_get_dt_data(struct device_node *of_node,
 	gconf = sensordata->power_info.gpio_conf;
 
 	gpio_array_size = of_gpio_count(of_node);
-	CDBG("%s gpio count %d\n", __func__, gpio_array_size);
+	pr_err("%s gpio count %d\n", __func__, gpio_array_size);
 
 	if (gpio_array_size) {
 		gpio_array = kzalloc(sizeof(uint16_t) * gpio_array_size,
@@ -318,7 +318,7 @@ static int32_t msm_sensor_get_dt_data(struct device_node *of_node,
 	slave_info->sensor_id_reg_addr = id_info[MSM_SENSOR_IDREGADDR_DATA];
 	slave_info->sensor_id = id_info[MSM_SENSOR_SENSOR_ID_DATA];
 	slave_info->sensor_id_mask = id_info[MSM_SENSOR_SENIDMASK_DATA];
-	CDBG("%s:%d slave addr 0x%x sensor reg 0x%x id 0x%x mask 0x%x\n",
+	pr_err("wdy %s:%d slave addr 0x%x sensor reg 0x%x id 0x%x mask 0x%x\n",
 		__func__, __LINE__,
 		slave_info->sensor_slave_addr,
 		slave_info->sensor_id_reg_addr,
@@ -482,6 +482,7 @@ int msm_sensor_power_up(struct msm_sensor_ctrl_t *s_ctrl)
 	sensor_i2c_client = s_ctrl->sensor_i2c_client;
 	slave_info = s_ctrl->sensordata->slave_info;
 	sensor_name = s_ctrl->sensordata->sensor_name;
+	pr_err("wdy %s try to power up the camera sensnor = %s\n",__func__,sensor_name);
 
 	if (!power_info || !sensor_i2c_client || !slave_info ||
 		!sensor_name) {
@@ -499,7 +500,11 @@ int msm_sensor_power_up(struct msm_sensor_ctrl_t *s_ctrl)
 			sensor_i2c_client);
 		if (rc < 0)
 			return rc;
+
+		//while(1);
 		rc = msm_sensor_check_id(s_ctrl);
+		pr_err("wdy rc msm_sensor_check_id=%d",rc);
+		//while(1);
 		if (rc < 0) {
 			msm_camera_power_down(power_info,
 				s_ctrl->sensor_device_type, sensor_i2c_client);
@@ -563,12 +568,14 @@ int msm_sensor_match_id(struct msm_sensor_ctrl_t *s_ctrl)
 		pr_err("%s: %s: read id failed\n", __func__, sensor_name);
 		return rc;
 	}
+	pr_err("wdy %s read chipid = %x",__func__,chipid);
 	//added by congshan start
 	if (!strncmp(sensor_name, "imx179", strlen("imx179"))) {//ZTEMT: wangdeyong add for front camera
 		chipid >>= 8;
 	}
+	//added by congshan end
 
-	CDBG("%s: read id: 0x%x expected id 0x%x:\n", __func__, chipid,
+	pr_err("wdy %s:%d read id: 0x%x expected id 0x%x:\n", __func__, __LINE__, chipid,
 		slave_info->sensor_id);
 	if (msm_sensor_id_by_mask(s_ctrl, chipid) != slave_info->sensor_id) {
 		pr_err("msm_sensor_match_id chip id doesnot match\n");

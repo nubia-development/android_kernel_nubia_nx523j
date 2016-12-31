@@ -37,7 +37,6 @@ enum ISP_START_PIXEL_PATTERN {
 	ISP_BAYER_GRGRGR,
 	ISP_BAYER_BGBGBG,
 	ISP_BAYER_GBGBGB,
-	ISP_BAYER_GGGGGG,
 	ISP_YUV_YCbYCr,
 	ISP_YUV_YCrYCb,
 	ISP_YUV_CbYCrY,
@@ -526,7 +525,6 @@ struct msm_isp_qbuf_info {
 };
 
 struct msm_isp_clk_rates {
-	uint32_t svs_rate;
 	uint32_t nominal_rate;
 	uint32_t high_rate;
 };

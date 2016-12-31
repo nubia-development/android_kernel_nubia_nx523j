@@ -1152,7 +1152,6 @@ static long msm_flash_subdev_do_ioctl(
 	default:
 		return msm_flash_subdev_ioctl(sd, cmd, arg);
 	}
-
 	rc =  msm_flash_subdev_ioctl(sd, cmd, &flash_data);
 	for (i = 0; i < MAX_LED_TRIGGERS; i++) {
 		u32->flash_current[i] = flash_data.flash_current[i];
