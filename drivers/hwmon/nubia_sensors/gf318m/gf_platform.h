@@ -92,6 +92,7 @@
 /*************************************************************/
 #define PLATFORM_DEV_NAME   "gf318m"
 #define DEV_NAME            "goodix_fp"
+#define AUTODETECT_NAME     "goodix"
 
 #define GF_PID              "GFx18M"
 #define GF_PID_LEN          6
@@ -111,12 +112,10 @@
 
 /*************************************************************/
 struct gf_pinctrl_info {
-	struct pinctrl *pinctrl;
+	struct pinctrl *pinctrl; 
 	struct pinctrl_state *gpio_state_active;
 	struct pinctrl_state *gpio_state_suspend;
-	struct pinctrl_state *gpio_enable_active;
 	struct pinctrl_state *gpio_int_active;
-	struct pinctrl_state *gpio_rst_active;
 };
 
 struct gf_dev {
@@ -181,4 +180,7 @@ int gf_pinctrl_set(struct gf_dev *gf_dev, bool active);
 void gf_reset(struct gf_dev *gf_dev);
 int gf_sys_init(void);
 
+#ifdef CONFIG_NUBIA_FP_AUTODETECT
+extern int fingerprint_device_autodetect(char *target_fingerprint_name);
+#endif
 #endif

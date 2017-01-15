@@ -44,7 +44,7 @@
 #define PAGE_SZIE 						128
 #define FILE_PATH						 "/persist/sensors/fw_read.bin"
 #define SMART_KEY_CFG                    "/persist/sensors/smart_key_cfg"
-#define PRESSURE_MAX_RW_TRIES 			2
+#define PRESSURE_MAX_RW_TRIES 			3
 #define I2C_BLOCK_LENGTH      			6
 
 #define IC_RESET_MCU           	 		0x01
@@ -926,7 +926,7 @@ static int pressure_vlps_read_reg(struct pressure_sensor_data *pdata ,u16 addr, 
 			    }
 			}
 			mutex_unlock(&pdata->lock);
-		} while (++i < 1);
+		} while (++i < 10);
 
 		return err;
 }
@@ -955,7 +955,7 @@ static int pressure_vlps_write_reg(struct pressure_sensor_data *pdata ,u16 addr,
 			    }
 			}
 			mutex_unlock(&pdata->lock);
-		} while (++i < 1);
+		} while (++i < 10);
 
 		return err;
 }
@@ -1308,7 +1308,7 @@ static struct device_attribute attrs_pressure_device[] = {
 		__ATTR(sensitivity_attr, 0664, pressure_sensitivity_attr_show ,pressure_sensitivity_attr_store),
 		__ATTR(report_host_status, 0664, pressure_slave_status_show, pressure_slave_status_store),
 		__ATTR(reset, 0640, pressure_reset_device_show, pressure_reset_device_store),
-		__ATTR(vlps_wakeup, 0666, pressure_device_vlps_wakeup_show, pressure_device_vlps_wakeup_store),
+		__ATTR(vlps_wakeup, 0664, pressure_device_vlps_wakeup_show, pressure_device_vlps_wakeup_store),
 };
 static struct device_attribute attrs_smartkey_device[] = {
 		__ATTR(enable_smart_key, 0640, pressure_enable_smart_key_show, pressure_enable_smart_key_store),

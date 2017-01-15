@@ -29,7 +29,7 @@
 #include <linux/notifier.h>
 #include <linux/fb.h>
 #endif
-#include "gf-log.h"
+#include "gf_log.h"
 
 /********************GF Mapping**********************/
 #define GF_BASE             (0x8000)
@@ -96,6 +96,7 @@
 /*************************************************************/
 #define SPI_DEV_NAME        "gf318m"
 #define DEV_NAME            "goodix_fp"
+#define AUTODETECT_NAME     "goodix"
 
 #define GF_PID              "GFx18M"
 #define GF_PID_LEN          6
@@ -121,7 +122,7 @@
 
 /*************************************************************/
 struct gf_pinctrl_info {
-	struct pinctrl *pinctrl; 
+	struct pinctrl *pinctrl;
 	struct pinctrl_state *gpio_state_active;
 	struct pinctrl_state *gpio_state_suspend;
 	struct pinctrl_state *gpio_int_active;
@@ -147,7 +148,7 @@ struct gf_dev {
 	/* buffer is NULL unless this device is open (users > 0) */
 	struct mutex buf_lock;
 	unsigned users;
-	u8 *buffer;		
+	u8 *buffer;
 	u8 buf_status;
 	u8 mode;
 	struct timer_list gf_timer;
@@ -232,5 +233,9 @@ int gf_spi_read_bytes(struct gf_dev *gf_dev, u16 addr, u32 data_len, u8 *rx_buf)
 int gf_spi_write_bytes(struct gf_dev *gf_dev, u16 addr, u32 data_len, u8 *tx_buf);
 int gf_fw_update(struct gf_dev* gf_dev, unsigned char *buf, unsigned short len);
 int gf_sys_init(void);
+
+#ifdef CONFIG_NUBIA_FP_AUTODETECT
+extern int fingerprint_device_autodetect(char *target_fingerprint_name);
+#endif
 
 #endif

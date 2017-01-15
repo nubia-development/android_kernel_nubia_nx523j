@@ -79,25 +79,7 @@ static unsigned char GF_FW[]=
 
 unsigned char *fw = GF_FW;
 #endif
-#ifdef CONFIG_ZTEMT_FP_COMPATIBLE
-static char ztemt_hw_version[10]="*,*";
-static char ztemt_hw_version_A[10]="0,0";//pcb version A
 
-static char ztemt_fp_goodix[10] = "0"; // 0 GND goodix ;1 NC egis ;2 VCC FPC
-static char ztemt_fp_gpio_target[10] = "*";
-static int  ztemt_fp_target_get(char *param)
-{
-    memcpy(ztemt_fp_gpio_target, param, strlen(param));
-    return 0;
-}
-early_param("fp_target", ztemt_fp_target_get);
-static int  ztemt_hw_version_get(char *param)
-{
-    memcpy(ztemt_hw_version, param, strlen(param));
-    return 0;
-}
-early_param("pcb_setup", ztemt_hw_version_get);
-#endif
 /* irq related operation */
 void gf_irq_op(int irq, int enable)
 {
@@ -276,7 +258,7 @@ int gf_spi_read_bytes(struct gf_dev *gf_dev, u16 addr, u32 data_len,
 
 #ifdef SPI_ASYNC
     msg.complete = gf_spi_complete;
-    msg.context = &write_done;	
+    msg.context = &write_done;
 
     spin_lock_irq(&gf_dev->spi_lock);
     ret = spi_async(gf_dev->spi, &msg);
@@ -398,11 +380,11 @@ int gf_init_gpio(struct gf_dev *gf_dev)
 	GF_LOG_INFO("success\n");
 	return 0;
 
-err_request_rst:	
+err_request_rst:
     gpio_free(gf_dev->irq_gpio);
 err_requeset_irq:
-	gpio_free(gf_dev->enable_gpio);	
-err_request_enable:	
+	gpio_free(gf_dev->enable_gpio);
+err_request_enable:
     return ret;
 }
 
@@ -504,7 +486,7 @@ static int gf_fb_notifier_callback(struct notifier_block *self,
 	if (evdata && evdata->data && event == FB_EVENT_BLANK) {
 		blank = evdata->data;
 		if (*blank == FB_BLANK_UNBLANK) {
-			GF_LOG_INFO("FB_BLANK_UNBLANK\n");			
+			GF_LOG_INFO("FB_BLANK_UNBLANK\n");
 			if (gf_dev->device_available == 1) {
 				gf_dev->fb_black = 0;
 #ifdef GF_FASYNC
@@ -746,7 +728,7 @@ static int isUpdate(struct gf_dev *gf_dev)
 
 static u8 is_9p_ready_ok(struct gf_dev *gf_dev)
 {
-    u8 tmpBuf[16] = { 0 }; 
+    u8 tmpBuf[16] = { 0 };
     u8 *ptr = NULL;
     u16 time_out = 0;
     gf_spi_read_bytes(gf_dev, 0x4220, 4, tmpBuf);
@@ -1160,7 +1142,7 @@ static long gf_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			GF_LOG_ERROR("unsupport cmd: 0x%x\n", cmd);
 			break;
 		}
-	}	
+	}
 	return retval;
 }
 
@@ -1385,7 +1367,7 @@ static int gf_probe(struct spi_device *spi)
 	unsigned long minor = 0;
     unsigned char version[GF_VERSION_SIZE] = { 0 };
 
-    GF_LOG_INFO("start\n");
+    GF_LOG_INFO("Spi Device start\n");
 
     /* Allocate driver data */
     gf_dev = kzalloc(sizeof(*gf_dev), GFP_KERNEL);
@@ -1607,7 +1589,7 @@ static int gf_remove(struct spi_device *spi)
     sysfs_remove_group(g_gf_kobj, &attr_group);
 	kobject_put(g_gf_kobj);
     list_del(&gf_dev->device_entry);
-    device_destroy(g_gf_spi_class, gf_dev->devt);   
+    device_destroy(g_gf_spi_class, gf_dev->devt);
 	clear_bit(MINOR(gf_dev->devt), minors);
 
     if (gf_dev->users == 0) {
@@ -1650,9 +1632,9 @@ static int gf_suspend(struct spi_device *dev, pm_message_t mesg)
 }
 
 static int gf_resume(struct spi_device *dev)
-{ 
+{
     struct gf_dev *gf_dev= spi_get_drvdata(dev);
- 
+
 	GF_LOG_INFO("start\n");
 
 	if (gf_dev->wake_up == true) {
@@ -1680,11 +1662,13 @@ static struct spi_driver gf_spi_driver = {
 static int __init gf_init(void)
 {
     int status = 0;
-#ifdef CONFIG_ZTEMT_FP_COMPATIBLE
-    GF_LOG_INFO("fp target is %s\n",ztemt_hw_version);
-    if((strcmp(ztemt_hw_version,ztemt_hw_version_A))&&strcmp(ztemt_fp_goodix,ztemt_fp_gpio_target))
-        return -1;
+
+#ifdef CONFIG_NUBIA_FP_AUTODETECT
+    if (fingerprint_device_autodetect(AUTODETECT_NAME)==false) {
+        return -ENODEV;
+    }
 #endif
+
     /* Claim our 256 reserved device numbers.  Then register a class
      * that will key udev/mdev to add/remove /dev nodes.  Last, register
      * the driver which manages those device numbers.
