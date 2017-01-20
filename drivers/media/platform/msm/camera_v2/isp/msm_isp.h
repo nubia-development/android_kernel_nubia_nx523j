@@ -303,10 +303,8 @@ enum msm_vfe_axi_state {
 	PAUSING,
 	RESUMING,
 	UPDATING,
-	//ZTEMT: li.bin223 add for video split by qualcomm --start
 	STARTED,
 	STOPPED,
-	//ZTEMT: li.bin223 add for video split by qualcomm --end
 };
 
 enum msm_vfe_axi_cfg_update_state {
