@@ -148,7 +148,7 @@
 #include "../msm8976-jtag.dtsi"
 #include "../msm8976-coresight.dtsi"
 #include "../msm8976-pm.dtsi"
-#include "../msm8976-gpu.dtsi"
+#include "msm8976-gpu.dtsi"
 #include "../msm8976-mdss-pll.dtsi"
 #include "../msm8976-cpu.dtsi"
 #include "../msm-rdbg.dtsi"
@@ -403,6 +403,7 @@
 	};
 
 	cpubw: qcom,cpubw {
+		label = "cpubw";
 		compatible = "qcom,devbw";
 		governor = "cpufreq";
 		qcom,src-dst-ports = <1 512>;
@@ -420,6 +421,7 @@
 	};
 
 	mincpubw: qcom,mincpubw {
+		label = "mincpubw";
 		compatible = "qcom,devbw";
 		governor = "cpufreq";
 		qcom,src-dst-ports = <1 512>;
