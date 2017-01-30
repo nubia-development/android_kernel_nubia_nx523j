@@ -502,6 +502,9 @@ typedef struct
 
    tWDA_AddSelfStaDebugParams wdaAddSelfStaParams;
 
+   uint8_t  mgmt_pktfree_fail;
+   vos_lock_t mgmt_pkt_lock;
+
 } tWDA_CbContext ; 
 
 typedef struct
@@ -788,6 +791,7 @@ tBssSystemRole wdaGetGlobalSystemRole(tpAniSirGlobal pMac);
 #  define WDA_GET_OFFLOADSCANLEARN(pRxMeta) (((WDI_DS_RxMetaInfoType*)(pRxMeta))->offloadScanLearn)
 /* WDA_GET_ROAMCANDIDATEIND **************************************************/
 #  define WDA_GET_ROAMCANDIDATEIND(pRxMeta) (((WDI_DS_RxMetaInfoType*)(pRxMeta))->roamCandidateInd)
+#  define WDA_IF_PER_ROAMCANDIDATEIND(pRxMeta) (((WDI_DS_RxMetaInfoType*)(pRxMeta))->perRoamCndInd)
 #endif
 #ifdef WLAN_FEATURE_EXTSCAN
 #define WDA_GET_EXTSCANFULLSCANRESIND(pRxMeta) (((WDI_DS_RxMetaInfoType*)(pRxMeta))->extscanBuffer)
@@ -1165,6 +1169,10 @@ tSirRetStatus uMacPostCtrlMsg(void* pSirGlobal, tSirMbMsg* pMb);
 #ifdef WLAN_FEATURE_ROAM_SCAN_OFFLOAD
 #define WDA_ROAM_SCAN_OFFLOAD_REQ   SIR_HAL_ROAM_SCAN_OFFLOAD_REQ
 #define WDA_ROAM_SCAN_OFFLOAD_RSP   SIR_HAL_ROAM_SCAN_OFFLOAD_RSP
+#define WDA_PER_ROAM_SCAN_OFFLOAD_REQ   SIR_HAL_PER_ROAM_SCAN_OFFLOAD_REQ
+#define WDA_PER_ROAM_SCAN_OFFLOAD_RSP   SIR_HAL_PER_ROAM_SCAN_OFFLOAD_RSP
+#define WDA_PER_ROAM_SCAN_TRIGGER_REQ   SIR_HAL_PER_ROAM_SCAN_TRIGGER_REQ
+#define WDA_PER_ROAM_SCAN_TRIGGER_RSP   SIR_HAL_PER_ROAM_SCAN_TRIGGER_RSP
 #endif
 
 #ifdef WLAN_WAKEUP_EVENTS
@@ -1294,6 +1302,7 @@ eHalStatus WDA_SetRegDomain(void * clientCtxt, v_REGDOMAIN_t regId,
 #define WDA_SEND_FREQ_RANGE_CONTROL_IND        SIR_HAL_SEND_FREQ_RANGE_CONTROL_IND
 
 #define WDA_ANTENNA_DIVERSITY_SELECTION_REQ    SIR_HAL_ANTENNA_DIVERSITY_SELECTION_REQ
+#define WDA_PAUSE_TL_IND                       SIR_HAL_PAUSE_TL_IND
 
 #define HAL_USE_BD_RATE2_FOR_MANAGEMENT_FRAME 0x40 // Bit 6 will be used to control BD rate for Management frames
 

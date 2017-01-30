@@ -493,20 +493,6 @@ eHalStatus sme_CloseSession(tHalHandle hHal, tANI_U8 sessionId,
                             tANI_U8 bPurgeSmeCmdList,
                             csrRoamSessionCloseCallback callback,
                             void *pContext);
-/*--------------------------------------------------------------------------
-
-  \brief sme_PurgeCmdList() - Purge all the sme cmd list
-
-  This is a synchronous API.
-
-
-  \param hHal - The handle returned by macOpen.
-
-  \param sessionId - A previous opened session's ID.
-
---------------------------------------------------------------------------*/
-
-eHalStatus sme_PurgeCmdList(tHalHandle hHal, tANI_U8 sessionId);
 
 /*--------------------------------------------------------------------------
   
@@ -1861,6 +1847,16 @@ eHalStatus sme_GenericChangeCountryCode( tHalHandle hHal,
                                          tANI_U8 *pCountry,
                                          v_REGDOMAIN_t reg_domain);
 
+#ifdef WLAN_FEATURE_ROAM_SCAN_OFFLOAD
+VOS_STATUS sme_set_per_roam_rxconfig (tHalHandle hHal, v_U8_t sessionId,
+                  v_U16_t minRate, v_U16_t maxRate, v_U8_t minPercentage,
+                  v_U16_t minPktRequired, v_U64_t waitPeriodForNextPERScan);
+
+VOS_STATUS sme_unset_per_roam_rxconfig (tHalHandle hHal);
+
+void sme_PERRoamScanStartStop(void *hHal, tANI_U8 start);
+#endif
+
 /* ---------------------------------------------------------------------------
 
     \fn sme_DHCPStartInd
@@ -2195,6 +2191,9 @@ eHalStatus sme_SetKeepAlive (tHalHandle hHal, tANI_U8 sessionId,
             eHAL_STATUS_FAILURE
 -------------------------------------------------------------------------------*/
 eHalStatus sme_GetOperationChannel(tHalHandle hHal, tANI_U32 *pChannel, tANI_U8 sessionId);
+
+eHalStatus sme_register_mgmt_frame_ind_callback(tHalHandle hHal,
+      sir_mgmt_frame_ind_callback callback);
 
 /* ---------------------------------------------------------------------------
 

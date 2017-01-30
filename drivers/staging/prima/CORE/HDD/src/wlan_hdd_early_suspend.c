@@ -373,7 +373,8 @@ VOS_STATUS hdd_enter_deep_sleep(hdd_context_t *pHddCtx, hdd_adapter_t *pAdapter)
        hddLog(VOS_TRACE_LEVEL_ERROR, "%s: vos_stop return failed %d",
                 __func__, vosStatus);
        VOS_ASSERT(0);
-       VOS_BUG(0);
+       if (isSsrPanicOnFailure())
+           VOS_BUG(0);
    }
 
    pHddCtx->hdd_ps_state = eHDD_SUSPEND_DEEP_SLEEP;
@@ -413,7 +414,8 @@ VOS_STATUS hdd_exit_deep_sleep(hdd_context_t *pHddCtx, hdd_adapter_t *pAdapter)
    {
       VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
          "%s: Failed in vos_start",__func__);
-      VOS_BUG(0);
+      if (isSsrPanicOnFailure())
+          VOS_BUG(0);
       goto err_deep_sleep;
    }
 
@@ -1921,6 +1923,10 @@ VOS_STATUS hdd_wlan_shutdown(void)
    }
 
    hdd_reset_all_adapters(pHddCtx);
+
+   /* set default value of Tcp delack and stop timer */
+   hdd_set_default_stop_delack_timer(pHddCtx);
+
    /* DeRegister with platform driver as client for Suspend/Resume */
    vosStatus = hddDeregisterPmOps(pHddCtx);
    if ( !VOS_IS_STATUS_SUCCESS( vosStatus ) )
@@ -2189,7 +2195,8 @@ VOS_STATUS hdd_wlan_re_init(void)
    if ( !VOS_IS_STATUS_SUCCESS( vosStatus ) )
    {
       hddLog(VOS_TRACE_LEVEL_FATAL,"%s: vos_start failed",__func__);
-      VOS_BUG(0);
+      if (isSsrPanicOnFailure())
+          VOS_BUG(0);
       goto err_vosclose;
    }
 
@@ -2275,6 +2282,9 @@ VOS_STATUS hdd_wlan_re_init(void)
       goto err_unregister_pmops;
    }
    vos_set_reinit_in_progress(VOS_MODULE_ID_VOSS, FALSE);
+
+   sme_register_mgmt_frame_ind_callback(pHddCtx->hHal,hdd_indicate_mgmt_frame);
+
 #ifdef WLAN_FEATURE_EXTSCAN
     sme_EXTScanRegisterCallback(pHddCtx->hHal,
             wlan_hdd_cfg80211_extscan_callback,
