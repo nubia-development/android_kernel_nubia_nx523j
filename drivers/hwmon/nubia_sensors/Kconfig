@@ -43,23 +43,6 @@ config NUBIA_SENSORS_PRESSURE_DEVICE
 	help
 		nubia pressure device
 
-################################################# HALL START
-config NUBIA_SENSORS_HALL_DEVICE
-	tristate "hall devicedriver"
-	depends on NUBIA_SENSORS
-	default n
-	help
-	  If you say yes here you get support for
-	  hall device
-
-config NUBIA_SENSORS_HALL_DEVICE_SINGLE
-	tristate "single hall device driver"
-	depends on NUBIA_SENSORS
-	default n
-	help
-	  If you say yes here you get support for
-	  hall device
-
 ################################################# FINGER_PRINTER START
 menuconfig NUBIA_SENSORS_FP
 	tristate "NUBIA FP DEVICE"
@@ -78,24 +61,6 @@ config NUBIA_FP_AUTODETECT
 
 ################################################# FINGER_PRINTER_GF318M START
 source drivers/hwmon/nubia_sensors/gf318m/Kconfig
-choice
-        prompt "choose the GF318M device style"
-        depends on NUBIA_SENSORS_FP_GF318M
-		default NUBIA_SENSORS_FP_GF318M_PLATFORM
-		help
-		  GF318M need to select the work style
-
-config NUBIA_SENSORS_FP_GF318M_SPI
-        bool "GF318M work as SPI device"
-        help
-          If you want GF318M work as SPI device, select it.
-
-config NUBIA_SENSORS_FP_GF318M_PLATFORM
-        bool "GF318M work as PLATFORM device"
-        help
-          If you want GF318M work as PLATFORM device, select it.
-
-endchoice
 ################################################# FINGER_PRINTER_GF318M END
 
 ################################################# FINGER_PRINTER_FPC1020 START

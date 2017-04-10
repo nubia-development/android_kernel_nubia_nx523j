@@ -112,10 +112,12 @@
 
 /*************************************************************/
 struct gf_pinctrl_info {
-	struct pinctrl *pinctrl; 
+	struct pinctrl *pinctrl;
 	struct pinctrl_state *gpio_state_active;
 	struct pinctrl_state *gpio_state_suspend;
+	struct pinctrl_state *gpio_enable_active;
 	struct pinctrl_state *gpio_int_active;
+	struct pinctrl_state *gpio_rst_active;
 };
 
 struct gf_dev {

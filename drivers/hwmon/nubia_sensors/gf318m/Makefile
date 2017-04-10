@@ -1,2 +1,1 @@
-obj-$(CONFIG_NUBIA_SENSORS_FP_GF318M_SPI) += gf-spi.o
-obj-$(CONFIG_NUBIA_SENSORS_FP_GF318M_PLATFORM) += gf_platform.o
+obj-$(CONFIG_NUBIA_SENSORS_FP_GF318M) += gf_platform.o

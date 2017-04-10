@@ -30,23 +30,26 @@ static LIST_HEAD(device_list);
 static DEFINE_MUTEX(device_list_lock);
 
 #ifdef CONFIG_ZTEMT_FP_COMPATIBLE
-static char ztemt_hw_version[10]="*,*";
-static char ztemt_hw_version_A[10]="0,0";//pcb version A
+extern void ztemt_get_hw_pcb_version(char* result);
 
 static char ztemt_fp_goodix[10] = "0"; // 0 GND goodix ;1 NC egis ;2 VCC FPC
 static char ztemt_fp_gpio_target[10] = "*";
+
+static char ztemt_config_version[10] = "*,*";
+static char ztemt_config_version_A[10] = "0,0";//config version A
 static int  ztemt_fp_target_get(char *param)
 {
     memcpy(ztemt_fp_gpio_target, param, strlen(param));
     return 0;
 }
 early_param("fp_target", ztemt_fp_target_get);
-static int  ztemt_hw_version_get(char *param)
+
+static int  ztemt_hw_config_get(char *param)
 {
-    memcpy(ztemt_hw_version, param, strlen(param));
+    memcpy(ztemt_config_version, param, strlen(param));
     return 0;
 }
-early_param("pcb_setup", ztemt_hw_version_get);
+early_param("config_setup", ztemt_hw_config_get);
 #endif
 
 /* irq related operation */
@@ -55,11 +58,11 @@ void gf_irq_op(int irq, int enable)
 	if (enable && irq_is_disable) {
 		irq_is_disable = 0;
 		enable_irq(irq);
-		GF_LOG_INFO("enable_irq\n");
+		GF_LOG_DEBUG("enable_irq\n");
 	} else if (!enable && !irq_is_disable) {
 		irq_is_disable = 1;
 		disable_irq_nosync(irq);
-		GF_LOG_INFO("disable_irq_nosync\n");
+		GF_LOG_DEBUG("disable_irq_nosync\n");
 	}
 }
 
@@ -136,35 +139,27 @@ int gf_init_gpio(struct gf_dev *gf_dev)
 		GF_LOG_ERROR("failed to request gf_enable gpio %d\n", gf_dev->enable_gpio);
 		goto err_request_enable;
 	}
-	gpio_direction_output(gf_dev->enable_gpio, 1);
-	gpio_set_value(gf_dev->enable_gpio, 1);
-
-	msleep(10);
 
     ret = gpio_request(gf_dev->irq_gpio, "gf_irq");
     if (ret) {
         GF_LOG_ERROR("failed to request gf_irq gpio %d\n", gf_dev->irq_gpio);
         goto err_requeset_irq;
     }
-    gpio_direction_output(gf_dev->irq_gpio, 0);
-    gpio_direction_input(gf_dev->irq_gpio);
 
     ret = gpio_request(gf_dev->reset_gpio, "gf_rst");
     if (ret) {
         GF_LOG_ERROR("failed to request gf_rst gpio %d\n", gf_dev->reset_gpio);
         goto err_request_rst;
     }
-    gpio_direction_output(gf_dev->reset_gpio, 1);
-	gpio_set_value(gf_dev->reset_gpio, 1);
 
 	GF_LOG_INFO("success\n");
 	return 0;
 
-err_request_rst:
+err_request_rst:	
     gpio_free(gf_dev->irq_gpio);
 err_requeset_irq:
-	gpio_free(gf_dev->enable_gpio);
-err_request_enable:
+	gpio_free(gf_dev->enable_gpio);	
+err_request_enable:	
     return ret;
 }
 
@@ -192,10 +187,24 @@ int gf_init_pinctrl(struct gf_dev *gf_dev, struct device *dev)
 		return -EINVAL;
 	}
 
+	gf_dev->gf_pctrl.gpio_enable_active = pinctrl_lookup_state(gf_dev->gf_pctrl.pinctrl,
+		"gf_enable_active");
+	if (IS_ERR_OR_NULL(gf_dev->gf_pctrl.gpio_enable_active)) {
+		GF_LOG_ERROR("failed to get enable active state pinctrl handle\n");
+		return -EINVAL;
+	}
+
 	gf_dev->gf_pctrl.gpio_int_active = pinctrl_lookup_state(gf_dev->gf_pctrl.pinctrl,
 		"gf_int_active");
 	if (IS_ERR_OR_NULL(gf_dev->gf_pctrl.gpio_int_active)) {
 		GF_LOG_ERROR("failed to get int active state pinctrl handle\n");
+		return -EINVAL;
+	}
+
+	gf_dev->gf_pctrl.gpio_rst_active = pinctrl_lookup_state(gf_dev->gf_pctrl.pinctrl,
+		"gf_rst_active");
+	if (IS_ERR_OR_NULL(gf_dev->gf_pctrl.gpio_rst_active)) {
+		GF_LOG_ERROR("failed to get rst active state pinctrl handle\n");
 		return -EINVAL;
 	}
 
@@ -204,21 +213,31 @@ int gf_init_pinctrl(struct gf_dev *gf_dev, struct device *dev)
 	return 0;
 }
 
-int gf_pinctrl_set(struct gf_dev *gf_dev, bool active)
+int gf_init_gpio_set(struct gf_dev *gf_dev)
 {
     int ret = 0;
 
     GF_LOG_INFO("start\n");
 
-    if (active) {
-        ret = pinctrl_select_state(gf_dev->gf_pctrl.pinctrl,
-			gf_dev->gf_pctrl.gpio_state_active);
-    } else {
-        ret = pinctrl_select_state(gf_dev->gf_pctrl.pinctrl,
-			gf_dev->gf_pctrl.gpio_state_suspend);
-    }
+	ret = pinctrl_select_state(gf_dev->gf_pctrl.pinctrl,
+		gf_dev->gf_pctrl.gpio_enable_active);
+	gpio_direction_output(gf_dev->enable_gpio, 1);
+	gpio_set_value(gf_dev->enable_gpio, 1);
 
-    GF_LOG_INFO("set %s = %d\n", active? "avtive" : "suspend", ret);
+	ret = pinctrl_select_state(gf_dev->gf_pctrl.pinctrl,
+		gf_dev->gf_pctrl.gpio_int_active);
+
+	ret = pinctrl_select_state(gf_dev->gf_pctrl.pinctrl,
+		gf_dev->gf_pctrl.gpio_rst_active);
+	gpio_direction_output(gf_dev->reset_gpio, 0);
+	gpio_set_value(gf_dev->reset_gpio, 0);
+
+	usleep(300);
+
+	gpio_direction_output(gf_dev->reset_gpio, 1);
+	gpio_set_value(gf_dev->reset_gpio, 1);
+
+    GF_LOG_INFO("end\n");
 
     return ret;
 }
@@ -243,14 +262,14 @@ void gf_power_off(struct gf_dev* gf_dev)
 
 void gf_hw_reset(struct gf_dev *gf_dev, unsigned int delay_ms)
 {
-    GF_LOG_INFO("start\n");
+    GF_LOG_DEBUG("start\n");
 	gpio_set_value(gf_dev->reset_gpio, 1);
 	msleep(1);
 	gpio_set_value(gf_dev->reset_gpio, 0);
 	msleep(6);
 	gpio_set_value(gf_dev->reset_gpio, 1);
 	msleep(delay_ms);
-    GF_LOG_INFO("end\n");
+    GF_LOG_DEBUG("end\n");
 }
 
 #ifdef CONFIG_FB
@@ -266,7 +285,7 @@ static int gf_fb_notifier_callback(struct notifier_block *self,
 	if (evdata && evdata->data && event == FB_EVENT_BLANK) {
 		blank = evdata->data;
 		if (*blank == FB_BLANK_UNBLANK) {
-			GF_LOG_INFO("FB_BLANK_UNBLANK\n");
+			GF_LOG_INFO("FB_BLANK_UNBLANK\n");			
 			if (gf_dev->device_available == 1) {
 				gf_dev->fb_black = 0;
 #ifdef GF_FASYNC
@@ -402,11 +421,11 @@ static long gf_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 	switch (cmd) {
 	case GF_IOC_TEE_DISABLE_IRQ:
-		GF_LOG_INFO("GF_IOC_DISABLE_IRQ\n");
+		GF_LOG_DEBUG("GF_IOC_DISABLE_IRQ\n");
 		gf_irq_disable(gf_dev);
 		break;
 	case GF_IOC_TEE_ENABLE_IRQ:
-		GF_LOG_INFO("GF_IOC_ENABLE_IRQ\n");
+		GF_LOG_DEBUG("GF_IOC_ENABLE_IRQ\n");
 		gf_irq_enable(gf_dev);
 		break;
 	case GF_IOC_TEE_SETSPEED:
@@ -427,13 +446,25 @@ static long gf_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			retval = -EFAULT;
 			break;
 		}
-		if (0x66 == gf_key.key)
-			break; //avoid HOME KEY
-		else if (0x74 == gf_key.key) {
+		if (0x66 == gf_key.key) {
+			//break; //avoid HOME KEY
+			gf_key.key = KEY_F3;
+		} else if (0x74 == gf_key.key) {
 			GF_LOG_INFO("GF_IOC_SENDKEY\n");
 			gf_key.key = KEY_F11; //change power key to F11
 			wake_lock_timeout(&gf_dev->wake_lock, 3 * 1000);
+		} else if (KEY_UP    == gf_key.key) {
+            gf_key.key = KEY_F4;//KEY_RIGHT;
+		} else if (KEY_DOWN  == gf_key.key) {
+            gf_key.key = KEY_F5;//KEY_LEFT;
+		} else if (KEY_LEFT  == gf_key.key) {
+            gf_key.key = KEY_F6;//KEY_DOWN;
+		} else if (KEY_RIGHT == gf_key.key) {
+            gf_key.key = KEY_F7;// KEY_UP;
+		} else if (KEY_F19   == gf_key.key) {
+		    gf_key.key = KEY_F8;
 		}
+
 		input_report_key(gf_dev->input, gf_key.key, gf_key.value);
 		input_sync(gf_dev->input);
 		break;
@@ -580,13 +611,13 @@ static const struct file_operations gf_fops = {
 #endif
 };
 
-static int gf_probe(struct platform_device *pdev)
+static int gf_probe(struct platform_device *pdev)	
 {
-    struct gf_dev *gf_dev = NULL;
+    struct gf_dev *gf_dev = NULL;    
 	unsigned long minor = 0;
 	int ret = 0;
 
-    GF_LOG_INFO("Platform Device start\n");
+    GF_LOG_INFO("start\n");
 
     /* Allocate driver data */
     gf_dev = kzalloc(sizeof(*gf_dev), GFP_KERNEL);
@@ -602,6 +633,7 @@ static int gf_probe(struct platform_device *pdev)
     gf_dev->pdev = pdev;
 	platform_set_drvdata(pdev, gf_dev);
 	g_gf_dev = gf_dev;
+	gf_dev->wake_up = true;
 
     wake_lock_init(&gf_dev->wake_lock, WAKE_LOCK_SUSPEND, "goodixfp_wakelock");
     spin_lock_init(&gf_dev->platform_lock);
@@ -625,10 +657,10 @@ static int gf_probe(struct platform_device *pdev)
 		goto err_pinctrl_init;
 	}
 
-	ret = gf_pinctrl_set(gf_dev, true);
+	ret = gf_init_gpio_set(gf_dev);
     if (ret) {
-        GF_LOG_ERROR("failed to gf_pinctrl_set\n");
-        goto err_pinctrl_set;
+        GF_LOG_ERROR("failed to gf_init_gpio_set\n");
+        goto err_init_gpio_set;
     }
 
     ret = gf_sys_init();
@@ -677,6 +709,22 @@ static int gf_probe(struct platform_device *pdev)
 	__set_bit(GF_INPUT_BACK_KEY, gf_dev->input->keybit);
 	__set_bit(GF_FF_KEY, gf_dev->input->keybit);
 	__set_bit(GF_POWER_KEY, gf_dev->input->keybit);
+	__set_bit(KEY_DOWN, gf_dev->input->keybit);
+	__set_bit(KEY_UP, gf_dev->input->keybit);
+	__set_bit(KEY_RIGHT, gf_dev->input->keybit);
+	__set_bit(KEY_LEFT, gf_dev->input->keybit);
+	__set_bit(KEY_ENTER, gf_dev->input->keybit);
+	__set_bit(KEY_BACK, gf_dev->input->keybit);
+	__set_bit(KEY_F19, gf_dev->input->keybit);
+	__set_bit(KEY_F18, gf_dev->input->keybit);
+	__set_bit(KEY_F11, gf_dev->input->keybit);
+	__set_bit(KEY_F9, gf_dev->input->keybit);
+	__set_bit(KEY_F8, gf_dev->input->keybit);
+	__set_bit(KEY_F7, gf_dev->input->keybit);
+	__set_bit(KEY_F6, gf_dev->input->keybit);
+	__set_bit(KEY_F5, gf_dev->input->keybit);
+	__set_bit(KEY_F4, gf_dev->input->keybit);
+	__set_bit(KEY_F3, gf_dev->input->keybit);
 
 	gf_dev->input->name = "gf318m-key";
 	if (input_register_device(gf_dev->input)) {
@@ -717,7 +765,7 @@ err_input_allocate:
 err_mkdev:
 	gf_sys_uninit(g_gf_kobj);
 err_sys_init:
-err_pinctrl_set:
+err_init_gpio_set:
     devm_pinctrl_put(gf_dev->gf_pctrl.pinctrl);
 err_pinctrl_init:
     gpio_free(gf_dev->reset_gpio);
@@ -735,7 +783,7 @@ err_dts_parse:
     return ret;
 }
 
-static int gf_remove(struct platform_device *pdev)
+static int gf_remove(struct platform_device *pdev)	
 {
     struct gf_dev *gf_dev = platform_get_drvdata(pdev);
 
@@ -756,7 +804,7 @@ static int gf_remove(struct platform_device *pdev)
     sysfs_remove_group(g_gf_kobj, &attr_group);
 	kobject_put(g_gf_kobj);
     list_del(&gf_dev->device_entry);
-    device_destroy(g_gf_class, gf_dev->devt);
+    device_destroy(g_gf_class, gf_dev->devt);   
 	clear_bit(MINOR(gf_dev->devt), minors);
 
     if (gf_dev->users == 0) {
@@ -794,9 +842,9 @@ static int gf_suspend(struct platform_device *pdev, pm_message_t state)
 }
 
 static int gf_resume(struct platform_device *pdev)
-{
+{ 
     struct gf_dev *gf_dev= platform_get_drvdata(pdev);
-
+ 
 	GF_LOG_INFO("start\n");
 
 	if (gf_dev->wake_up == true) {
