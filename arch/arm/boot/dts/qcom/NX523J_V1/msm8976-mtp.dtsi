@@ -366,8 +366,8 @@
 	hall {
 		compatible = "hall-switch";
 		interrupt-parent = <&msm_gpio>;
-		interrupts = <144 0x2003>, <142 0x2003>;
-		linux,gpio-int = <&msm_gpio 144 0x1>, <&msm_gpio 142 0x1>;
+		interrupts = <142 0x2003>;
+		linux,gpio-int = <&msm_gpio 142 0x1>;
 		linux,max-uv = <3300000>;
 		linux,min-uv = <1650000>;
 		linux,wakeup;

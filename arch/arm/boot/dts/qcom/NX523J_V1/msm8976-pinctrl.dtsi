@@ -46,7 +46,7 @@
 		};
 
 		hall_int_pin {
-			qcom,pins = <&gp 144>, <&gp 142>;
+			qcom,pins = <&gp 142>;
 			qcom,pin-func = <0>;
 			qcom,num-grp-pins = <1>;
 			label = "hall-irq";
